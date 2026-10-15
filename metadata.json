@@ -1,0 +1,6 @@
+{
+  "name": "BazaarLoop",
+  "description": "BazaarLoop is a modern brand-direct e-commerce store for 100% brand-new, factory-sealed products featuring instant shopping bag checkout, order tracking, verified brand storefronts, and seamless WhatsApp retail concierge ordering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
