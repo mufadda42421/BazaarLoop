@@ -15,8 +15,12 @@ import {
   Upload,
   Lock,
   ChevronLeft,
-  Info
+  Info,
+  CreditCard,
+  Building2,
+  Check
 } from 'lucide-react';
+import { PaymentMethodType, BankingDetails } from '../types';
 
 interface AccountSettingsViewProps {
   onNavigate: (view: string, param?: string) => void;
@@ -25,7 +29,7 @@ interface AccountSettingsViewProps {
 export const AccountSettingsView: React.FC<AccountSettingsViewProps> = ({ onNavigate }) => {
   const { user, updateProfile, updateWhatsAppSettings, logout } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'whatsapp' | 'profile' | 'security'>('whatsapp');
+  const [activeTab, setActiveTab] = useState<'whatsapp' | 'banking' | 'profile' | 'security'>('whatsapp');
 
   // Profile fields
   const [name, setName] = useState(user?.name || '');
@@ -49,10 +53,60 @@ export const AccountSettingsView: React.FC<AccountSettingsViewProps> = ({ onNavi
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [phoneCallEnabled, setPhoneCallEnabled] = useState(Boolean(user?.phoneCallEnabled));
 
+  // Banking & Payment Details
+  const [acceptedMethods, setAcceptedMethods] = useState<PaymentMethodType[]>(
+    user?.bankingDetails?.acceptedMethods || ['upi', 'gpay', 'apple_pay', 'paypal', 'card']
+  );
+  const [upiId, setUpiId] = useState(user?.bankingDetails?.upiId || '');
+  const [gpayNumber, setGpayNumber] = useState(user?.bankingDetails?.gpayNumber || '');
+  const [applePayId, setApplePayId] = useState(user?.bankingDetails?.applePayId || '');
+  const [paypalEmail, setPaypalEmail] = useState(user?.bankingDetails?.paypalEmail || '');
+  const [bankName, setBankName] = useState(user?.bankingDetails?.bankName || '');
+  const [accountHolder, setAccountHolder] = useState(user?.bankingDetails?.accountHolder || user?.name || '');
+  const [accountNumber, setAccountNumber] = useState(user?.bankingDetails?.accountNumber || '');
+  const [ifscOrRouting, setIfscOrRouting] = useState(user?.bankingDetails?.ifscOrRouting || '');
+  const [cardType, setCardType] = useState<'credit' | 'debit' | 'both'>(user?.bankingDetails?.cardType || 'both');
+  const [paymentNotes, setPaymentNotes] = useState(user?.bankingDetails?.paymentNotes || '');
+
   // Feedback states
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const toggleMethod = (method: PaymentMethodType) => {
+    setAcceptedMethods(prev =>
+      prev.includes(method) ? prev.filter(m => m !== method) : [...prev, method]
+    );
+  };
+
+  const handleSaveBanking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setSuccessMsg(null);
+    setErrorMsg(null);
+    try {
+      const bankingPayload: BankingDetails = {
+        acceptedMethods,
+        upiId: upiId.trim(),
+        gpayNumber: gpayNumber.trim(),
+        applePayId: applePayId.trim(),
+        paypalEmail: paypalEmail.trim(),
+        bankName: bankName.trim(),
+        accountHolder: accountHolder.trim() || name.trim(),
+        accountNumber: accountNumber.trim(),
+        ifscOrRouting: ifscOrRouting.trim(),
+        cardType,
+        paymentNotes: paymentNotes.trim()
+      };
+      await updateProfile({ bankingDetails: bankingPayload });
+      setSuccessMsg('Your banking and payment methods have been updated successfully.');
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to update banking details');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,6 +228,18 @@ export const AccountSettingsView: React.FC<AccountSettingsViewProps> = ({ onNavi
           >
             <WhatsAppIcon className="w-4 h-4 fill-current" />
             <span>WhatsApp & Contact Integration</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('banking')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'banking'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Banking & Payment Methods</span>
           </button>
 
           <button
@@ -415,6 +481,195 @@ export const AccountSettingsView: React.FC<AccountSettingsViewProps> = ({ onNavi
               >
                 <Save className="w-4 h-4" />
                 <span>{isSaving ? 'Saving...' : 'Save WhatsApp Preferences'}</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* BANKING & PAYMENT METHODS TAB */}
+        {activeTab === 'banking' && (
+          <form onSubmit={handleSaveBanking} className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Banking & Payment Details
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Provide your payout and payment receiving methods (UPI, GPay, Apple Pay, PayPal, Credit/Debit card).
+                  </p>
+                </div>
+              </div>
+
+              {/* Accepted Methods */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Accepted Payment Methods
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { id: 'upi', label: '⚡ UPI', desc: 'Google Pay, PhonePe, BHIM' },
+                    { id: 'gpay', label: '🌐 GPay', desc: 'Google Pay' },
+                    { id: 'apple_pay', label: '🍎 Apple Pay', desc: 'Apple Wallet' },
+                    { id: 'paypal', label: '🅿️ PayPal', desc: 'Online PayPal' },
+                    { id: 'card', label: '💳 Credit/Debit Card', desc: 'Bank card & transfer' }
+                  ].map(item => {
+                    const isSelected = acceptedMethods.includes(item.id as PaymentMethodType);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => toggleMethod(item.id as PaymentMethodType)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-600 shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div>
+                          <div className="font-bold text-xs">{item.label}</div>
+                          <div className="text-[10px] text-slate-500">{item.desc}</div>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-indigo-600 flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* UPI */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  UPI ID (VPA)
+                </label>
+                <input
+                  type="text"
+                  value={upiId}
+                  onChange={e => setUpiId(e.target.value)}
+                  placeholder="e.g. yourname@oksbi or 9876543210@upi"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+
+              {/* GPay */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Google Pay (GPay) Number / Handle
+                </label>
+                <input
+                  type="text"
+                  value={gpayNumber}
+                  onChange={e => setGpayNumber(e.target.value)}
+                  placeholder="e.g. +1 555 123 4567 or gpay-handle"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+
+              {/* Apple Pay */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Apple Pay ID / Email / Phone
+                </label>
+                <input
+                  type="text"
+                  value={applePayId}
+                  onChange={e => setApplePayId(e.target.value)}
+                  placeholder="e.g. applepay@example.com or +1 415 555 0192"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+
+              {/* PayPal */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  PayPal Email or PayPal.Me Link
+                </label>
+                <input
+                  type="text"
+                  value={paypalEmail}
+                  onChange={e => setPaypalEmail(e.target.value)}
+                  placeholder="e.g. payments@example.com or paypal.me/handle"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+
+              {/* Credit card or debit card & Bank Transfer */}
+              <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200 space-y-3">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-indigo-600" />
+                  Credit Card, Debit Card & Bank Payout Details
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Bank Name</label>
+                    <input
+                      type="text"
+                      value={bankName}
+                      onChange={e => setBankName(e.target.value)}
+                      placeholder="e.g. Chase / Bank of America / HDFC"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Account Holder Name</label>
+                    <input
+                      type="text"
+                      value={accountHolder}
+                      onChange={e => setAccountHolder(e.target.value)}
+                      placeholder="Account holder name"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Account / Card Number</label>
+                    <input
+                      type="text"
+                      value={accountNumber}
+                      onChange={e => setAccountNumber(e.target.value)}
+                      placeholder="Account number or card last 4 digits"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">IFSC / Routing / SWIFT Code</label>
+                    <input
+                      type="text"
+                      value={ifscOrRouting}
+                      onChange={e => setIfscOrRouting(e.target.value)}
+                      placeholder="Routing number or IFSC code"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Notes */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Payment Instructions / Notes for Buyers
+                </label>
+                <textarea
+                  rows={2}
+                  value={paymentNotes}
+                  onChange={e => setPaymentNotes(e.target.value)}
+                  placeholder="e.g. Please send payment screenshot on WhatsApp with your Order ID for instant dispatch confirmation."
+                  className="w-full p-3 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-200 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>{isSaving ? 'Saving...' : 'Save Banking & Payment Details'}</span>
               </button>
             </div>
           </form>

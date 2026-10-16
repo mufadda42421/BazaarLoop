@@ -16,7 +16,8 @@ import {
   Clock,
   ArrowRight,
   AlertCircle,
-  Smartphone
+  Smartphone,
+  Check
 } from 'lucide-react';
 
 interface CheckoutModalProps {
@@ -33,15 +34,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
   const [state, setState] = useState('CA');
   const [postalCode, setPostalCode] = useState('94105');
   const [phone, setPhone] = useState(user?.whatsappNumber || user?.phoneNumber || '');
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'apple_pay' | 'cod'>('card');
+  
+  // Payment methods requested: UPI, GPay, Apple Pay, PayPal, Credit card or debit card
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'gpay' | 'apple_pay' | 'paypal' | 'card'>('upi');
+  const [paymentIdentifier, setPaymentIdentifier] = useState('');
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
   if (!isCheckoutOpen) return null;
 
-  const shippingCost = subtotal >= 50 ? 0 : 9.99;
-  const total = subtotal + shippingCost;
+  const total = subtotal;
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +54,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
       return;
     }
     if (!fullName.trim() || !street.trim() || !city.trim() || !postalCode.trim()) {
-      setErrorMsg('Please complete all required shipping fields');
+      setErrorMsg('Please complete all required address fields');
       return;
     }
 
@@ -96,7 +100,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
   const whatsAppOrderTrackingLink = completedOrder && phone
     ? buildWhatsAppChatUrl(
         phone,
-        `Hello BazaarLoop Store! I just placed order #${completedOrder.orderNumber} ($${completedOrder.total}). Tracking: ${completedOrder.trackingNumber}. Please send delivery alerts here.`
+        `Hello! I just placed order #${completedOrder.orderNumber} ($${completedOrder.total}). For delivery, please let me know when it can be dispatched.`
       )
     : '';
 
@@ -111,112 +115,146 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 font-['Space_Grotesk']">
-                {completedOrder ? 'Order Confirmed!' : 'Express Checkout & Delivery'}
+                {completedOrder ? 'Order Confirmed!' : 'Direct Order & Checkout'}
               </h3>
               <p className="text-[11px] text-slate-500">
-                {completedOrder ? 'Your brand-new items are being prepared' : '100% Genuine Retail • Factory Sealed Guaranteed'}
+                {completedOrder
+                  ? `Order #${completedOrder.orderNumber} authorized`
+                  : '100% Brand-New Retail Guarantee'}
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/50"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Completed Order Confirmation View */}
+        {/* ORDER SUCCESS VIEW */}
         {completedOrder ? (
-          <div className="p-6 sm:p-8 text-center space-y-6">
-            <div className="w-16 h-16 rounded-3xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-
-            <div>
-              <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest font-mono">
-                Order #{completedOrder.orderNumber}
-              </span>
-              <h2 className="text-2xl font-extrabold text-slate-900 font-['Space_Grotesk'] mt-1">
+          <div className="p-6 sm:p-8 space-y-6">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle2 className="w-9 h-9 stroke-2" />
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 font-['Space_Grotesk']">
                 Thank You for Your Order!
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-md mx-auto">
-                Your order has been authorized and dispatched to the warehouse. Estimated delivery date: <strong>{completedOrder.estimatedDelivery}</strong>.
+              </h3>
+              <p className="text-xs text-slate-600 max-w-md mx-auto">
+                Your order <strong>#{completedOrder.orderNumber}</strong> has been received by the seller.
               </p>
             </div>
 
-            {/* Tracking Card */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-left max-w-md mx-auto space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Carrier:</span>
-                <span className="font-bold text-slate-900">{completedOrder.carrier}</span>
+            {/* Note: For delivery contact your seller */}
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-1.5">
+              <div className="flex items-center gap-2 font-bold text-sm text-amber-900">
+                <Truck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <span>For delivery, contact your seller</span>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">Tracking Code:</span>
-                <span className="font-mono font-bold text-indigo-600">{completedOrder.trackingNumber}</span>
+              <p className="text-amber-800 leading-relaxed text-[11px]">
+                Please reach out to your seller via WhatsApp or messages to confirm your delivery address, preferred courier, and dispatch schedule.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between py-1 border-b border-slate-200">
+                <span className="text-slate-500">Payment Method:</span>
+                <span className="font-bold text-slate-900 uppercase">{completedOrder.paymentMethod.replace('_', ' ')}</span>
               </div>
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex justify-between py-1 border-b border-slate-200">
                 <span className="text-slate-500">Delivery Address:</span>
-                <span className="font-medium text-slate-800 text-right truncate max-w-[200px]">
+                <span className="font-bold text-slate-900 text-right">
                   {completedOrder.shippingAddress.street}, {completedOrder.shippingAddress.city}
                 </span>
               </div>
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-extrabold text-slate-900">
-                <span>Total Paid:</span>
-                <span>${completedOrder.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <div className="flex justify-between py-1 text-sm font-extrabold text-slate-900">
+                <span>Total Amount:</span>
+                <span className="text-indigo-600 font-['Space_Grotesk']">
+                  ${completedOrder.total.toFixed(2)} USD
+                </span>
               </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto pt-2">
+            {/* WhatsApp Contact Action */}
+            {phone && (
+              <a
+                href={whatsAppOrderTrackingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <WhatsAppIcon className="w-5 h-5 fill-white" />
+                <span>Contact Seller on WhatsApp for Delivery Updates</span>
+              </a>
+            )}
+
+            <div className="flex gap-3">
               <button
                 onClick={handleViewOrders}
-                className="flex-1 py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md cursor-pointer flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm cursor-pointer"
               >
-                <span>Track in Buyer Hub</span>
-                <ArrowRight className="w-4 h-4" />
+                View My Orders
               </button>
-
-              {whatsAppOrderTrackingLink && (
-                <a
-                  href={whatsAppOrderTrackingLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="py-3 px-4 rounded-xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-bold shadow-md flex items-center justify-center gap-2"
-                >
-                  <WhatsAppIcon className="w-4 h-4 fill-white" />
-                  <span>WhatsApp Concierge</span>
-                </a>
-              )}
+              <button
+                onClick={handleClose}
+                className="px-5 py-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         ) : (
-          /* Checkout Form */
-          <form onSubmit={handlePlaceOrder} className="p-6 space-y-6">
+          /* CHECKOUT FORM */
+          <form onSubmit={handlePlaceOrder} className="p-6 space-y-5">
             {errorMsg && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
-            {/* Shipping Address */}
+            {/* Notice: For delivery contact your seller */}
+            <div className="p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-950 text-xs flex items-center gap-2.5">
+              <Truck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <div>
+                <strong className="block font-bold">For delivery, contact your seller</strong>
+                <span className="text-[11px] text-amber-800">
+                  Exact delivery fees and dispatch options are arranged directly with your seller upon order.
+                </span>
+              </div>
+            </div>
+
+            {/* Delivery Address */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Shipping Address</span>
+                <span>Delivery Address</span>
               </h4>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">Full Name *</label>
                   <input
                     type="text"
                     required
                     value={fullName}
                     onChange={e => setFullName(e.target.value)}
-                    placeholder="e.g. Sarah Jenkins"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    placeholder="Recipient's full name"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Phone Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="Mobile for delivery contact"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
 
@@ -227,8 +265,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
                     required
                     value={street}
                     onChange={e => setStreet(e.target.value)}
-                    placeholder="e.g. 500 Howard Street, Suite 400"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    placeholder="House / Flat / Street address"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
 
@@ -239,95 +277,176 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
                     required
                     value={city}
                     onChange={e => setCity(e.target.value)}
-                    placeholder="San Francisco"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    placeholder="City"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">State</label>
-                    <input
-                      type="text"
-                      value={state}
-                      onChange={e => setState(e.target.value)}
-                      placeholder="CA"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Postal Code *</label>
-                    <input
-                      type="text"
-                      required
-                      value={postalCode}
-                      onChange={e => setPostalCode(e.target.value)}
-                      placeholder="94105"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Mobile Phone (for delivery SMS/WhatsApp updates) *</label>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Postal Code *</label>
                   <input
-                    type="tel"
+                    type="text"
                     required
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    placeholder="+1 415 555 0199"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    value={postalCode}
+                    onChange={e => setPostalCode(e.target.value)}
+                    placeholder="Postal / PIN code"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Payment Method Selector */}
+            {/* Payment Methods Section (UPI, GPay, Apple Pay, PayPal, Credit/Debit card) */}
             <div className="space-y-3 pt-2 border-t border-slate-100">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                 <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Payment Method</span>
               </h4>
 
-              <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                {/* UPI */}
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('card')}
+                  onClick={() => setPaymentMethod('upi')}
                   className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
-                    paymentMethod === 'card'
-                      ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700'
+                    paymentMethod === 'upi'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs'
                       : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <CreditCard className="w-4 h-4 mx-auto mb-1 text-indigo-600" />
-                  <span>Credit Card</span>
+                  <div className="text-base mb-0.5">⚡</div>
+                  <span>UPI</span>
                 </button>
 
+                {/* GPay */}
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('gpay')}
+                  className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                    paymentMethod === 'gpay'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs'
+                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="text-base mb-0.5">🌐</div>
+                  <span>GPay</span>
+                </button>
+
+                {/* Apple Pay */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('apple_pay')}
                   className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
                     paymentMethod === 'apple_pay'
-                      ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs'
                       : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <Smartphone className="w-4 h-4 mx-auto mb-1 text-slate-800" />
-                  <span>Apple / GPay</span>
+                  <div className="text-base mb-0.5">🍎</div>
+                  <span>Apple Pay</span>
                 </button>
 
+                {/* PayPal */}
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('cod')}
+                  onClick={() => setPaymentMethod('paypal')}
                   className={`p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
-                    paymentMethod === 'cod'
-                      ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700'
+                    paymentMethod === 'paypal'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs'
                       : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <Truck className="w-4 h-4 mx-auto mb-1 text-emerald-600" />
-                  <span>Cash on Delivery</span>
+                  <div className="text-base mb-0.5">🅿️</div>
+                  <span>PayPal</span>
                 </button>
+
+                {/* Credit card or debit card */}
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('card')}
+                  className={`col-span-2 sm:col-span-2 p-3 rounded-xl border font-bold text-center transition-all cursor-pointer ${
+                    paymentMethod === 'card'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-xs'
+                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 mx-auto mb-0.5 text-indigo-600" />
+                  <span>Credit Card or Debit Card</span>
+                </button>
+              </div>
+
+              {/* Dynamic input for selected payment method */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs">
+                {paymentMethod === 'upi' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-700">Enter Your UPI ID (VPA)</label>
+                    <input
+                      type="text"
+                      value={paymentIdentifier}
+                      onChange={e => setPaymentIdentifier(e.target.value)}
+                      placeholder="e.g. name@oksbi / mobile@upi"
+                      className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                )}
+                {paymentMethod === 'gpay' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-700">Google Pay Mobile Number / ID</label>
+                    <input
+                      type="text"
+                      value={paymentIdentifier}
+                      onChange={e => setPaymentIdentifier(e.target.value)}
+                      placeholder="e.g. +1 555 0192 or GPay handle"
+                      className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                )}
+                {paymentMethod === 'apple_pay' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-700">Apple Pay Confirmation</label>
+                    <input
+                      type="text"
+                      value={paymentIdentifier}
+                      onChange={e => setPaymentIdentifier(e.target.value)}
+                      placeholder="Apple ID phone or email"
+                      className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                )}
+                {paymentMethod === 'paypal' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-slate-700">PayPal Email Address</label>
+                    <input
+                      type="email"
+                      value={paymentIdentifier}
+                      onChange={e => setPaymentIdentifier(e.target.value)}
+                      placeholder="yourname@paypal.com"
+                      className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                )}
+                {paymentMethod === 'card' && (
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-semibold text-slate-700">Card Information</label>
+                    <input
+                      type="text"
+                      placeholder="Card Number (Visa, Mastercard, RuPay)"
+                      className="w-full p-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="MM/YY"
+                        className="p-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none"
+                      />
+                      <input
+                        type="password"
+                        placeholder="CVV"
+                        className="p-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -337,10 +456,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
                 <span>Items Subtotal ({cart.reduce((s, i) => s + i.quantity, 0)})</span>
                 <span className="font-bold text-slate-900">${subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Express Priority Delivery</span>
-                <span className="font-bold text-emerald-600">
-                  {shippingCost === 0 ? 'FREE' : `$${shippingCost.toFixed(2)}`}
+              <div className="flex justify-between items-center text-slate-600">
+                <span className="flex items-center gap-1">
+                  <Truck className="w-3.5 h-3.5 text-amber-600" />
+                  Delivery
+                </span>
+                <span className="font-bold text-[11px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  Contact seller for delivery
                 </span>
               </div>
               <div className="pt-2 border-t border-slate-200 flex justify-between text-sm font-extrabold text-slate-900">
@@ -363,7 +485,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
                 disabled={isSubmitting || cart.length === 0}
                 className="flex-1 py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-200 transition-all cursor-pointer flex items-center justify-center gap-2"
               >
-                {isSubmitting ? 'Authorizing & Placing Order...' : `Pay $${total.toFixed(2)} & Place Order`}
+                {isSubmitting ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>Confirm Order & Contact Seller</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </div>
           </form>

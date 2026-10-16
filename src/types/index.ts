@@ -1,3 +1,19 @@
+export type PaymentMethodType = 'upi' | 'gpay' | 'apple_pay' | 'paypal' | 'card';
+
+export interface BankingDetails {
+  acceptedMethods: PaymentMethodType[];
+  upiId?: string;
+  gpayNumber?: string;
+  applePayId?: string;
+  paypalEmail?: string;
+  bankName?: string;
+  accountHolder?: string;
+  accountNumber?: string;
+  ifscOrRouting?: string;
+  cardType?: 'credit' | 'debit' | 'both';
+  paymentNotes?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -21,6 +37,7 @@ export interface User {
   phoneNumber: string | null;
   phoneCallEnabled: boolean;
   isDifferentPhone: boolean;
+  bankingDetails?: BankingDetails;
 }
 
 export interface Product {
@@ -95,7 +112,7 @@ export interface Order {
   trackingNumber: string;
   carrier: string;
   estimatedDelivery: string;
-  paymentMethod: 'card' | 'apple_pay' | 'cod';
+  paymentMethod: 'upi' | 'gpay' | 'apple_pay' | 'paypal' | 'card' | 'cod';
   createdAt: string;
   updatedAt: string;
 }

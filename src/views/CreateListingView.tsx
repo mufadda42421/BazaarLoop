@@ -473,6 +473,13 @@ export const CreateListingView: React.FC<CreateListingViewProps> = ({ onNavigate
                   <span>Next-Day Priority Courier</span>
                 </label>
               </div>
+
+              <div className="mt-2.5 p-3 rounded-xl bg-amber-50 border border-amber-200/80 text-xs text-amber-950 flex items-center gap-2">
+                <Truck className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>
+                  <strong>Delivery notice:</strong> Buyers are advised "For delivery, contact your seller" to coordinate delivery address and courier details.
+                </span>
+              </div>
             </div>
           </div>
 

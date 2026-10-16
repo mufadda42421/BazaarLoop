@@ -82,7 +82,7 @@ export const AnimatedMarketplaceHero: React.FC<AnimatedMarketplaceHeroProps> = (
       const res = await api.createProduct({
         title: quickTitle.trim(),
         brand: quickBrand.trim() || 'BazaarLoop Brand Store',
-        description: `100% Brand-new, factory-sealed authentic product with full manufacturer warranty. In stock at our ${quickLocation} warehouse. Ships with express courier delivery.`,
+        description: `100% Brand-new, factory-sealed authentic product with full manufacturer warranty. For delivery, contact your seller directly.`,
         price: Number(quickPrice),
         currency: 'USD',
         category: quickCategory,
@@ -143,7 +143,7 @@ export const AnimatedMarketplaceHero: React.FC<AnimatedMarketplaceHeroProps> = (
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md"
             >
               <BadgeCheck className="w-4 h-4 text-emerald-400" />
-              <span>100% Brand-New Retail • Verified Official Stores • Express Shipping</span>
+              <span>100% Brand-New Retail • Verified Official Stores • Contact Seller for Delivery</span>
             </motion.div>
 
             <motion.h1
@@ -255,7 +255,7 @@ export const AnimatedMarketplaceHero: React.FC<AnimatedMarketplaceHeroProps> = (
                   <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                     <div className="flex items-center gap-2">
                       <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-xs font-bold text-slate-200">Instant Cart & Delivery</span>
+                      <span className="text-xs font-bold text-slate-200">Contact Seller for Delivery</span>
                     </div>
                     <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-800 uppercase tracking-wider">
                       Factory Sealed

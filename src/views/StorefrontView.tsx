@@ -16,7 +16,9 @@ import {
   MessageSquare,
   ChevronLeft,
   BadgeCheck,
-  Package
+  Package,
+  Truck,
+  CreditCard
 } from 'lucide-react';
 
 interface StorefrontViewProps {
@@ -251,6 +253,28 @@ export const StorefrontView: React.FC<StorefrontViewProps> = ({ sellerId, onNavi
 
       {/* Store Listings */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
+        {/* Delivery & Payment Methods Banner */}
+        <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5 text-amber-950">
+            <Truck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <strong className="block font-bold">For delivery, contact your seller</strong>
+              <span className="text-[11px] text-amber-800">
+                Courier dispatch, tracking, and delivery schedules are coordinated directly with this store.
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold text-slate-700 bg-slate-50 p-2 rounded-xl border border-slate-100">
+            <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="text-slate-500 mr-1">Accepted Payments:</span>
+            <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-800">⚡ UPI</span>
+            <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-800">🌐 GPay</span>
+            <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-800">🍎 Apple Pay</span>
+            <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-800">🅿️ PayPal</span>
+            <span className="bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-800">💳 Card</span>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-900 uppercase tracking-wider font-['Space_Grotesk']">
             Brand Catalog ({listings.length})

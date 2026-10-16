@@ -31,7 +31,9 @@ import {
   BadgeCheck,
   Plus,
   Minus,
-  Package
+  Package,
+  CreditCard,
+  Copy
 } from 'lucide-react';
 
 interface ProductDetailViewProps {
@@ -56,9 +58,17 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId,
   const [addedNotice, setAddedNotice] = useState(false);
 
   // WhatsApp template selector
-  const [selectedTemplate, setSelectedTemplate] = useState<'order_now' | 'availability' | 'specs' | 'delivery' | 'custom'>('order_now');
+  const [selectedTemplate, setSelectedTemplate] = useState<'order_now' | 'availability' | 'specs' | 'delivery' | 'payment' | 'custom'>('order_now');
   const [customMessageText, setCustomMessageText] = useState('');
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const handleCopy = (text: string, label: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(label);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   // Messaging modal state
   const [messageText, setMessageText] = useState('');
@@ -366,9 +376,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId,
                 <span className="text-[11px] text-slate-500">100% Original Unit</span>
               </div>
               <div className="space-y-1 p-2 border-x border-slate-100">
-                <Truck className="w-5 h-5 text-emerald-600 mx-auto" />
-                <strong className="block font-bold text-slate-900">Express Delivery</strong>
-                <span className="text-[11px] text-slate-500">Dispatched in 24h</span>
+                <Truck className="w-5 h-5 text-amber-600 mx-auto" />
+                <strong className="block font-bold text-slate-900">Direct Delivery</strong>
+                <span className="text-[11px] text-amber-700 font-semibold">Contact Seller</span>
               </div>
               <div className="space-y-1 p-2">
                 <RotateCcw className="w-5 h-5 text-violet-600 mx-auto" />
@@ -457,8 +467,19 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId,
                 <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                   <span className="text-slate-600 font-medium">In-Stock Quantity:</span>
                   <span className={`font-bold ${isOutOfStock ? 'text-rose-600' : 'text-emerald-600'}`}>
-                    {product.quantity > 0 ? `${product.quantity} units ready to ship` : 'Currently out of stock'}
+                    {product.quantity > 0 ? `${product.quantity} units ready to dispatch` : 'Currently out of stock'}
                   </span>
+                </div>
+
+                {/* Prominent Delivery Notice */}
+                <div className="mt-3 p-3.5 rounded-2xl bg-amber-50/90 border border-amber-200/80 text-amber-950 text-xs flex items-center gap-2.5 shadow-2xs">
+                  <Truck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <div className="flex-1">
+                    <strong className="block font-bold text-amber-950">For delivery, contact your seller</strong>
+                    <span className="text-[11px] text-amber-800 leading-tight block">
+                      Delivery timeframe, address confirmation, and courier arrangements are handled directly with your seller.
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -578,7 +599,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId,
                                 : 'bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-100/50'
                             }`}
                           >
-                            Shipping Options
+                            Delivery Terms
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedTemplate('payment')}
+                            className={`py-1.5 px-2.5 rounded-xl font-medium text-left transition-all ${
+                              selectedTemplate === 'payment'
+                                ? 'bg-emerald-600 text-white font-semibold'
+                                : 'bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-100/50'
+                            }`}
+                          >
+                            Payment (UPI/GPay/Card)
                           </button>
                         </div>
                       </div>
@@ -619,6 +651,127 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId,
                       </form>
                     )}
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* PAYMENT METHODS SECTION */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 font-['Space_Grotesk']">
+                  <CreditCard className="w-4 h-4 text-indigo-600" />
+                  Payment Methods
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full">
+                  Verified Options
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {/* UPI */}
+                <div className="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">⚡ UPI</span>
+                    {seller?.bankingDetails?.upiId && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(seller.bankingDetails.upiId, 'UPI ID')}
+                        className="text-[10px] text-indigo-600 hover:underline font-semibold cursor-pointer"
+                      >
+                        {copiedField === 'UPI ID' ? 'Copied!' : 'Copy'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600 truncate font-mono">
+                    {seller?.bankingDetails?.upiId || 'Google Pay, PhonePe, BHIM'}
+                  </p>
+                </div>
+
+                {/* GPay */}
+                <div className="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">🌐 GPay</span>
+                    {seller?.bankingDetails?.gpayNumber && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(seller.bankingDetails.gpayNumber, 'GPay')}
+                        className="text-[10px] text-indigo-600 hover:underline font-semibold cursor-pointer"
+                      >
+                        {copiedField === 'GPay' ? 'Copied!' : 'Copy'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600 truncate font-mono">
+                    {seller?.bankingDetails?.gpayNumber || 'Google Pay Accepted'}
+                  </p>
+                </div>
+
+                {/* Apple Pay */}
+                <div className="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">🍎 Apple Pay</span>
+                    {seller?.bankingDetails?.applePayId && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(seller.bankingDetails.applePayId, 'Apple Pay')}
+                        className="text-[10px] text-indigo-600 hover:underline font-semibold cursor-pointer"
+                      >
+                        {copiedField === 'Apple Pay' ? 'Copied!' : 'Copy'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600 truncate font-mono">
+                    {seller?.bankingDetails?.applePayId || 'Apple Wallet Accepted'}
+                  </p>
+                </div>
+
+                {/* PayPal */}
+                <div className="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">🅿️ PayPal</span>
+                    {seller?.bankingDetails?.paypalEmail && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(seller.bankingDetails.paypalEmail, 'PayPal')}
+                        className="text-[10px] text-indigo-600 hover:underline font-semibold cursor-pointer"
+                      >
+                        {copiedField === 'PayPal' ? 'Copied!' : 'Copy'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600 truncate font-mono">
+                    {seller?.bankingDetails?.paypalEmail || 'PayPal Direct'}
+                  </p>
+                </div>
+
+                {/* Credit card or debit card */}
+                <div className="col-span-2 sm:col-span-2 p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                      <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
+                      Credit card or debit card
+                    </span>
+                    {seller?.bankingDetails?.accountNumber && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(seller.bankingDetails.accountNumber, 'Card/Bank')}
+                        className="text-[10px] text-indigo-600 hover:underline font-semibold cursor-pointer"
+                      >
+                        {copiedField === 'Card/Bank' ? 'Copied!' : 'Copy'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600">
+                    {seller?.bankingDetails?.bankName
+                      ? `${seller.bankingDetails.bankName} • ${seller.bankingDetails.accountHolder || seller.name}`
+                      : 'Visa, Mastercard, RuPay, Debit & Bank Transfer'}
+                  </p>
+                </div>
+              </div>
+
+              {seller?.bankingDetails?.paymentNotes && (
+                <div className="p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-[11px] text-indigo-900">
+                  <strong>Seller Note:</strong> {seller.bankingDetails.paymentNotes}
                 </div>
               )}
             </div>

@@ -253,7 +253,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate, searchQuery, onS
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">
-              <Truck className="w-3.5 h-3.5 text-indigo-600" /> Free Shipping &gt; $50
+              <Truck className="w-3.5 h-3.5 text-amber-600" /> For delivery contact your seller
             </span>
           </div>
         </div>

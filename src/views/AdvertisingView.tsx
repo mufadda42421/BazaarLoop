@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Product, AdCampaign } from '../types';
 import { api } from '../services/api';
+import { SafeImage } from '../components/SafeImage';
 import {
   Megaphone,
   Sparkles,
@@ -176,17 +177,16 @@ export const AdvertisingView: React.FC<AdvertisingViewProps> = ({ onNavigate }) 
                   className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
-                    {c.productImage ? (
-                      <img
-                        src={c.productImage}
-                        alt=""
-                        className="w-14 h-14 rounded-xl object-cover bg-slate-100 flex-shrink-0 border border-slate-100"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0 border border-slate-100 text-slate-400">
-                        <Megaphone className="w-5 h-5" />
-                      </div>
-                    )}
+                    <SafeImage
+                      src={c.productImage}
+                      alt={c.productTitle || ''}
+                      className="w-14 h-14 rounded-xl object-cover bg-slate-100 flex-shrink-0 border border-slate-100"
+                      fallback={
+                        <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0 border border-slate-100 text-slate-400">
+                          <Megaphone className="w-5 h-5" />
+                        </div>
+                      }
+                    />
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-900 truncate">

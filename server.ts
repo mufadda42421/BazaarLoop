@@ -64,19 +64,26 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
       whatsappContactEnabled = false,
       isDifferentPhone = false,
       phoneNumber = '',
-      phoneCallEnabled = false
+      phoneCallEnabled = false,
+      bankingDetails
     } = req.body;
 
-    if (!name || !email || !password) {
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const cleanPassword = typeof password === 'string' ? password : '';
+    const cleanWhatsApp = typeof whatsappLocalNumber === 'string' ? whatsappLocalNumber.trim() : '';
+    const cleanPhone = typeof phoneNumber === 'string' ? phoneNumber.trim() : '';
+
+    if (!cleanName || !cleanEmail || !cleanPassword) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
     }
 
-    if (password.length < 6) {
+    if (cleanPassword.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
     const db = getDb();
-    const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const existing = db.users.find(u => u.email.toLowerCase() === cleanEmail);
     if (existing) {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
@@ -84,13 +91,35 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     let normalizedWhatsApp: string | null = null;
     let isWhatsAppValid = false;
 
-    if (whatsappLocalNumber.trim()) {
-      const norm = normalizeWhatsAppNumber(whatsappCountryCode, whatsappLocalNumber);
+    if (cleanWhatsApp) {
+      const norm = normalizeWhatsAppNumber(whatsappCountryCode || '+1', cleanWhatsApp);
       if (!norm.isValid) {
         return res.status(400).json({ error: 'The WhatsApp number entered is invalid. Please check the country code and number.' });
       }
       normalizedWhatsApp = norm.normalized;
       isWhatsAppValid = true;
+    }
+
+    // Parse banking & payment details if provided
+    let cleanBankingDetails = undefined;
+    if (bankingDetails && typeof bankingDetails === 'object') {
+      const accepted = Array.isArray(bankingDetails.acceptedMethods)
+        ? bankingDetails.acceptedMethods.filter((m: string) => ['upi', 'gpay', 'apple_pay', 'paypal', 'card'].includes(m))
+        : [];
+
+      cleanBankingDetails = {
+        acceptedMethods: accepted,
+        upiId: typeof bankingDetails.upiId === 'string' ? bankingDetails.upiId.trim() : '',
+        gpayNumber: typeof bankingDetails.gpayNumber === 'string' ? bankingDetails.gpayNumber.trim() : '',
+        applePayId: typeof bankingDetails.applePayId === 'string' ? bankingDetails.applePayId.trim() : '',
+        paypalEmail: typeof bankingDetails.paypalEmail === 'string' ? bankingDetails.paypalEmail.trim() : '',
+        bankName: typeof bankingDetails.bankName === 'string' ? bankingDetails.bankName.trim() : '',
+        accountHolder: typeof bankingDetails.accountHolder === 'string' ? bankingDetails.accountHolder.trim() : '',
+        accountNumber: typeof bankingDetails.accountNumber === 'string' ? bankingDetails.accountNumber.trim() : '',
+        ifscOrRouting: typeof bankingDetails.ifscOrRouting === 'string' ? bankingDetails.ifscOrRouting.trim() : '',
+        cardType: bankingDetails.cardType === 'credit' || bankingDetails.cardType === 'debit' ? bankingDetails.cardType : 'both',
+        paymentNotes: typeof bankingDetails.paymentNotes === 'string' ? bankingDetails.paymentNotes.trim() : ''
+      };
     }
 
     const now = new Date().toISOString();
@@ -99,10 +128,10 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
 
     const newUser: User = {
       id: crypto.randomUUID(),
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      passwordHash: hashPassword(password),
-      avatarUrl: '',
+      name: cleanName,
+      email: cleanEmail,
+      passwordHash: hashPassword(cleanPassword),
+      avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80`,
       bio: '',
       city: '',
       role: isFirstUser ? 'admin' : 'user',
@@ -111,16 +140,17 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
       updatedAt: now,
       whatsappNumber: normalizedWhatsApp,
       whatsappCountryCode: whatsappCountryCode || '+1',
-      whatsappLocalNumber: whatsappLocalNumber.trim(),
+      whatsappLocalNumber: cleanWhatsApp,
       whatsappNumberVerified: false,
       whatsappContactEnabled: Boolean(whatsappContactEnabled && isWhatsAppValid),
       whatsappNumberPublic: false,
       whatsappContactPreference: 'direct_chat',
       whatsappOnStorefront: true,
       whatsappOnListings: true,
-      phoneNumber: phoneNumber.trim() || null,
+      phoneNumber: cleanPhone || null,
       phoneCallEnabled: Boolean(phoneCallEnabled),
-      isDifferentPhone: Boolean(isDifferentPhone)
+      isDifferentPhone: Boolean(isDifferentPhone),
+      bankingDetails: cleanBankingDetails
     };
 
     db.users.push(newUser);
@@ -129,8 +159,8 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     db.notifications.push({
       id: crypto.randomUUID(),
       userId: newUser.id,
-      title: 'Welcome to BazaarLoop!',
-      message: 'Your account is ready. Discover products, explore seller storefronts, or publish your first listing.',
+      title: 'Welcome to BazaarLoop E-Commerce!',
+      message: 'Your account is active. Explore brand collections, place orders with express delivery, or start your official storefront.',
       isRead: false,
       createdAt: now,
       type: 'system'
@@ -142,20 +172,23 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     return res.status(201).json({ token, user: sanitizeUser(newUser) });
   } catch (err: any) {
     console.error('Registration error:', err);
-    return res.status(500).json({ error: 'Server error during registration' });
+    return res.status(500).json({ error: err.message || 'Server error during registration' });
   }
 });
 
 app.post('/api/auth/login', (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const cleanPassword = typeof password === 'string' ? password : '';
+
+    if (!cleanEmail || !cleanPassword) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
     const db = getDb();
-    const user = db.users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (!user || !verifyPassword(password, user.passwordHash)) {
+    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (!user || !verifyPassword(cleanPassword, user.passwordHash)) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -163,7 +196,7 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
     return res.json({ token, user: sanitizeUser(user) });
   } catch (err: any) {
     console.error('Login error:', err);
-    return res.status(500).json({ error: 'Server error during login' });
+    return res.status(500).json({ error: err.message || 'Server error during login' });
   }
 });
 
@@ -173,7 +206,7 @@ app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) 
 
 app.put('/api/auth/profile', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { name, bio, city, avatarUrl } = req.body;
+    const { name, bio, city, avatarUrl, bankingDetails } = req.body;
     const db = getDb();
     const user = db.users.find(u => u.id === req.user!.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -182,6 +215,21 @@ app.put('/api/auth/profile', requireAuth, (req: AuthenticatedRequest, res: Respo
     if (typeof bio === 'string') user.bio = bio.trim();
     if (typeof city === 'string') user.city = city.trim();
     if (typeof avatarUrl === 'string') user.avatarUrl = avatarUrl;
+    if (bankingDetails && typeof bankingDetails === 'object') {
+      user.bankingDetails = {
+        acceptedMethods: Array.isArray(bankingDetails.acceptedMethods) ? bankingDetails.acceptedMethods : [],
+        upiId: typeof bankingDetails.upiId === 'string' ? bankingDetails.upiId.trim() : '',
+        gpayNumber: typeof bankingDetails.gpayNumber === 'string' ? bankingDetails.gpayNumber.trim() : '',
+        applePayId: typeof bankingDetails.applePayId === 'string' ? bankingDetails.applePayId.trim() : '',
+        paypalEmail: typeof bankingDetails.paypalEmail === 'string' ? bankingDetails.paypalEmail.trim() : '',
+        bankName: typeof bankingDetails.bankName === 'string' ? bankingDetails.bankName.trim() : '',
+        accountHolder: typeof bankingDetails.accountHolder === 'string' ? bankingDetails.accountHolder.trim() : '',
+        accountNumber: typeof bankingDetails.accountNumber === 'string' ? bankingDetails.accountNumber.trim() : '',
+        ifscOrRouting: typeof bankingDetails.ifscOrRouting === 'string' ? bankingDetails.ifscOrRouting.trim() : '',
+        cardType: bankingDetails.cardType || 'both',
+        paymentNotes: typeof bankingDetails.paymentNotes === 'string' ? bankingDetails.paymentNotes.trim() : ''
+      };
+    }
     user.updatedAt = new Date().toISOString();
 
     // Sync seller name on their products

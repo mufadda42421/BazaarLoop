@@ -403,7 +403,7 @@ export const InboxView: React.FC<InboxViewProps> = ({ initialConversationId, onN
                 {/* Attachment preview if selected */}
                 {attachmentDataUrl && attachmentDataUrl.trim() ? (
                   <div className="p-2 px-4 bg-slate-100 flex items-center gap-2 border-t border-slate-200">
-                    <img src={attachmentDataUrl} alt="Preview" className="w-10 h-10 object-cover rounded-lg" />
+                    <SafeImage src={attachmentDataUrl} alt="Preview" className="w-10 h-10 object-cover rounded-lg" />
                     <span className="text-xs text-slate-600">Photo attached</span>
                     <button
                       onClick={() => setAttachmentDataUrl(null)}

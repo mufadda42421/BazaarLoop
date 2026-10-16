@@ -37,10 +37,10 @@ interface BuyerDashboardViewProps {
 }
 
 export const BuyerDashboardView: React.FC<BuyerDashboardViewProps> = ({ onNavigate }) => {
-  const { user, openAuthModal } = useAuth();
+  const { user, openAuthModal, updateProfile } = useAuth();
   const { addToCart } = useCart();
 
-  const [activeTab, setActiveTab] = useState<'orders' | 'saved' | 'inquiries' | 'following' | 'recent' | 'safety'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'saved' | 'inquiries' | 'following' | 'recent' | 'banking' | 'safety'>('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [savedProducts, setSavedProducts] = useState<Product[]>([]);
   const [buyerConversations, setBuyerConversations] = useState<Conversation[]>([]);
@@ -48,6 +48,44 @@ export const BuyerDashboardView: React.FC<BuyerDashboardViewProps> = ({ onNaviga
   const [recentlyViewed, setRecentlyViewed] = useState<RecentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [copiedTrack, setCopiedTrack] = useState<string | null>(null);
+
+  // Banking & Payment Details State
+  const [bankingData, setBankingData] = useState<any>(user?.bankingDetails || {
+    acceptedMethods: ['upi', 'gpay', 'apple_pay', 'paypal', 'card'],
+    upiId: '',
+    gpayNumber: '',
+    applePayId: '',
+    paypalEmail: '',
+    bankName: '',
+    accountHolder: '',
+    accountNumber: '',
+    ifscOrRouting: '',
+    paymentNotes: ''
+  });
+  const [isSavingBanking, setIsSavingBanking] = useState(false);
+  const [bankingSavedMsg, setBankingSavedMsg] = useState(false);
+
+  useEffect(() => {
+    if (user?.bankingDetails) {
+      setBankingData(user.bankingDetails);
+    }
+  }, [user?.bankingDetails]);
+
+  const handleSaveBanking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingBanking(true);
+    try {
+      if (updateProfile) {
+        await updateProfile({ bankingDetails: bankingData });
+      }
+      setBankingSavedMsg(true);
+      setTimeout(() => setBankingSavedMsg(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingBanking(false);
+    }
+  };
 
   const fetchBuyerData = async () => {
     setIsLoading(true);
@@ -265,6 +303,7 @@ export const BuyerDashboardView: React.FC<BuyerDashboardViewProps> = ({ onNaviga
             { id: 'inquiries', label: 'Store Inquiries', icon: MessageSquare, count: buyerConversations.length },
             { id: 'following', label: 'Followed Brands', icon: Users, count: followedSellers.length },
             { id: 'recent', label: 'Browsing Trail', icon: History, count: recentlyViewed.length },
+            { id: 'banking', label: 'Banking & Payments', icon: CreditCard, count: undefined },
             { id: 'safety', label: 'Authenticity & Warranty Guide', icon: ShieldCheck, count: undefined }
           ].map(t => {
             const Icon = t.icon;
@@ -720,7 +759,169 @@ export const BuyerDashboardView: React.FC<BuyerDashboardViewProps> = ({ onNaviga
           </div>
         )}
 
-        {/* TAB 6: AUTHENTICITY & WARRANTY GUIDE */}
+        {/* TAB 6: BANKING & PAYMENT DETAILS */}
+        {activeTab === 'banking' && (
+          <div className="max-w-3xl mx-auto space-y-6">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <CreditCard className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 font-['Space_Grotesk']">
+                      Banking & Payment Details
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Manage your payment details for UPI, GPay, Apple Pay, PayPal, and Card.
+                    </p>
+                  </div>
+                </div>
+
+                {bankingSavedMsg && (
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl flex items-center gap-1.5 animate-in fade-in">
+                    <Check className="w-4 h-4" /> Saved!
+                  </span>
+                )}
+              </div>
+
+              <form onSubmit={handleSaveBanking} className="space-y-4">
+                {/* UPI ID */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    ⚡ UPI ID / VPA
+                  </label>
+                  <input
+                    type="text"
+                    value={bankingData.upiId || ''}
+                    onChange={e => setBankingData({ ...bankingData, upiId: e.target.value })}
+                    placeholder="e.g. name@oksbi or 9876543210@upi"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                  />
+                </div>
+
+                {/* GPay */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    🌐 Google Pay (GPay) Phone or ID
+                  </label>
+                  <input
+                    type="text"
+                    value={bankingData.gpayNumber || ''}
+                    onChange={e => setBankingData({ ...bankingData, gpayNumber: e.target.value })}
+                    placeholder="e.g. +1 555 123 4567 or gpay-handle"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                  />
+                </div>
+
+                {/* Apple Pay */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    🍎 Apple Pay Contact / ID
+                  </label>
+                  <input
+                    type="text"
+                    value={bankingData.applePayId || ''}
+                    onChange={e => setBankingData({ ...bankingData, applePayId: e.target.value })}
+                    placeholder="e.g. applepay@example.com or +1 415 555 0192"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                  />
+                </div>
+
+                {/* PayPal */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    🅿️ PayPal Email or PayPal.Me Link
+                  </label>
+                  <input
+                    type="text"
+                    value={bankingData.paypalEmail || ''}
+                    onChange={e => setBankingData({ ...bankingData, paypalEmail: e.target.value })}
+                    placeholder="e.g. user@paypal.com or paypal.me/handle"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                  />
+                </div>
+
+                {/* Credit card or debit card & Bank Transfer */}
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <CreditCard className="w-4 h-4 text-indigo-600" />
+                    Credit Card or Debit Card & Bank Transfer Details
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Bank Name</label>
+                      <input
+                        type="text"
+                        value={bankingData.bankName || ''}
+                        onChange={e => setBankingData({ ...bankingData, bankName: e.target.value })}
+                        placeholder="e.g. JPMorgan Chase, HDFC, Barclays"
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Account Holder Name</label>
+                      <input
+                        type="text"
+                        value={bankingData.accountHolder || ''}
+                        onChange={e => setBankingData({ ...bankingData, accountHolder: e.target.value })}
+                        placeholder="Legal account name"
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Account / Card Number</label>
+                      <input
+                        type="text"
+                        value={bankingData.accountNumber || ''}
+                        onChange={e => setBankingData({ ...bankingData, accountNumber: e.target.value })}
+                        placeholder="Account Number or Card Info"
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">IFSC / Routing / SWIFT</label>
+                      <input
+                        type="text"
+                        value={bankingData.ifscOrRouting || ''}
+                        onChange={e => setBankingData({ ...bankingData, ifscOrRouting: e.target.value })}
+                        placeholder="IFSC / Routing / BIC code"
+                        className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Payment Instructions / Note
+                  </label>
+                  <input
+                    type="text"
+                    value={bankingData.paymentNotes || ''}
+                    onChange={e => setBankingData({ ...bankingData, paymentNotes: e.target.value })}
+                    placeholder="e.g. Share screenshot of payment on WhatsApp to expedite courier dispatch"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingBanking}
+                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-200 transition-all cursor-pointer"
+                  >
+                    {isSavingBanking ? 'Saving...' : 'Save Payment & Banking Details'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: AUTHENTICITY & WARRANTY GUIDE */}
         {activeTab === 'safety' && (
           <div className="max-w-3xl mx-auto space-y-6">
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
