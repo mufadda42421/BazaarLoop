@@ -18,3 +18,23 @@
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* Styled horizontal scrollbar for BizManager options bar */
+.bizmanager-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #6366f1 #1e293b;
+}
+.bizmanager-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.bizmanager-scrollbar::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 9999px;
+}
+.bizmanager-scrollbar::-webkit-scrollbar-thumb {
+  background: #4f46e5;
+  border-radius: 9999px;
+}
+.bizmanager-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6366f1;
+}

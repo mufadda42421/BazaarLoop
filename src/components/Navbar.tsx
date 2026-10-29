@@ -18,7 +18,8 @@ import {
   ChevronDown,
   X,
   ShoppingBag,
-  Truck
+  Truck,
+  Briefcase
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -75,8 +76,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={() => onNavigate('home')}
           className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0"
         >
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-700 to-violet-600 flex items-center justify-center text-white shadow-md shadow-indigo-300/40 group-hover:scale-105 transition-transform duration-200">
-            <span className="font-extrabold text-xl tracking-tighter font-['Space_Grotesk']">BL</span>
+          <div className="w-10 h-10 rounded-2xl bg-white/90 border border-slate-200/80 shadow-xs flex items-center justify-center p-0.5 overflow-hidden group-hover:scale-105 transition-transform duration-200">
+            <img
+              src="/assets/aistudio/Bazaar-Loop_Shopping_Bag_Logo_6ec1025c.png"
+              alt="BazaarLoop"
+              className="w-full h-full object-contain"
+            />
           </div>
           <div className="hidden sm:block">
             <span className="text-xl font-extrabold tracking-tight text-slate-900 font-['Space_Grotesk'] block leading-none">
@@ -232,6 +237,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                       >
                         <LayoutDashboard className="w-4 h-4 text-slate-400" />
                         <span>Merchant Inventory & Stock</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          window.location.hash = 'bizmanager';
+                          onNavigate('seller-dashboard');
+                        }}
+                        className="w-full flex items-center justify-between px-4 py-2 text-indigo-700 hover:bg-indigo-50 font-semibold transition-colors text-left bg-indigo-50/40"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Briefcase className="w-4 h-4 text-indigo-600" />
+                          <span>BizManager Portal</span>
+                        </div>
+                        <span className="text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full tracking-wider">
+                          Auto Flow
+                        </span>
                       </button>
 
                       <button

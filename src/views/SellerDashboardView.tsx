@@ -22,20 +22,30 @@ import {
   DollarSign,
   TrendingUp,
   ShoppingBag,
-  BadgeCheck,
   Truck
 } from 'lucide-react';
+import { BizManagerPortal } from '../components/BizManagerPortal';
 
 interface SellerDashboardViewProps {
   onNavigate: (view: string, param?: string) => void;
+  initialSection?: string;
 }
 
-export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavigate }) => {
+export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavigate, initialSection }) => {
   const { user } = useAuth();
 
+  const [section, setSection] = useState<'inventory' | 'bizmanager'>(
+    initialSection === 'bizmanager' ? 'bizmanager' : 'inventory'
+  );
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [tab, setTab] = useState<'all' | 'active' | 'out_of_stock' | 'paused' | 'draft'>('all');
+
+  useEffect(() => {
+    if (initialSection === 'bizmanager') {
+      setSection('bizmanager');
+    }
+  }, [initialSection]);
 
   // Restock modal state
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
@@ -147,20 +157,34 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
   return (
     <div className="min-h-screen bg-[#FAFAF9] pb-24">
       {/* Dashboard Top Header */}
-      <section className="bg-white border-b border-slate-200/60 pt-8 pb-6 px-4 sm:px-6 lg:px-8">
+      <section className="bg-white border-b border-slate-200/60 pt-6 pb-5 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest font-['Space_Grotesk']">
-                Brand Merchant Operations
-              </span>
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-white p-1 border border-slate-200/80 shadow-xs overflow-hidden flex items-center justify-center flex-shrink-0">
+              <img
+                src="/assets/aistudio/Bazaar-Loop_Shopping_Bag_Logo_6ec1025c.png"
+                alt="BazaarLoop"
+                className="w-full h-full object-contain"
+              />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-['Space_Grotesk'] mt-1">
-              Storefront Inventory & Warehouse
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Manage your brand catalog, restock quantities with 1 click, track customer inquiries, and optimize listings.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest font-['Space_Grotesk']">
+                  Brand Merchant Operations
+                </span>
+                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                  Verified Storefront
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-['Space_Grotesk'] mt-0.5">
+                {section === 'bizmanager' ? 'BizManager Financial Suite' : 'Storefront Inventory & Warehouse'}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                {section === 'bizmanager'
+                  ? 'Native financial operations, automatic order flow sync, invoice builder & Islamic duties calculation.'
+                  : 'Manage your brand catalog, restock quantities with 1 click, track customer inquiries, and optimize listings.'}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -174,56 +198,96 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
           </div>
         </div>
 
-        {/* Real Live Metrics */}
-        <div className="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Catalog Products</span>
-              <Package className="w-4 h-4 text-indigo-600" />
-            </div>
-            <div className="text-2xl font-extrabold text-slate-900 mt-1 font-['Space_Grotesk']">
-              {products.length}
-            </div>
-            <span className="text-[11px] text-slate-400">Total in catalog</span>
-          </div>
+        {/* Primary Studio Section Switcher */}
+        <div className="max-w-7xl mx-auto mt-6 flex items-center gap-2 border-b border-slate-200/80 pb-2">
+          <button
+            type="button"
+            onClick={() => setSection('inventory')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              section === 'inventory'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            <span>Storefront Inventory ({products.length})</span>
+          </button>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Catalog Views</span>
-              <Eye className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-2xl font-extrabold text-slate-900 mt-1 font-['Space_Grotesk']">
-              {totalViews}
-            </div>
-            <span className="text-[11px] text-slate-400">Total item visits</span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Customer Wishlists</span>
-              <Heart className="w-4 h-4 text-rose-500" />
-            </div>
-            <div className="text-2xl font-extrabold text-slate-900 mt-1 font-['Space_Grotesk']">
-              {totalSaves}
-            </div>
-            <span className="text-[11px] text-slate-400">Saved by buyers</span>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Customer Inquiries</span>
-              <MessageSquare className="w-4 h-4 text-amber-500" />
-            </div>
-            <div className="text-2xl font-extrabold text-slate-900 mt-1 font-['Space_Grotesk']">
-              {totalInquiries}
-            </div>
-            <span className="text-[11px] text-slate-400">Direct inquiries</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => setSection('bizmanager')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              section === 'bizmanager'
+                ? 'bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-600 text-white shadow-md shadow-indigo-300'
+                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <DollarSign className="w-4 h-4 text-emerald-400" />
+            <span>BizManager</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 font-mono font-bold">
+              Auto Cash Flow
+            </span>
+          </button>
         </div>
+
+        {/* Real Live Metrics (shown in Inventory section) */}
+        {section === 'inventory' && (
+          <div className="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                <span>Catalog Products</span>
+                <Package className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div className="text-2xl font-extrabold text-slate-900 mt-1 font-['Space_Grotesk']">
+                {products.length}
+              </div>
+              <span className="text-[11px] text-slate-400">Total in catalog</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                <span>Catalog Views</span>
+                <Eye className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-2xl font-extrabold text-slate-900 mt-1 font-['Space_Grotesk']">
+                {totalViews}
+              </div>
+              <span className="text-[11px] text-slate-400">Total item visits</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                <span>Customer Wishlists</span>
+                <Heart className="w-4 h-4 text-rose-500" />
+              </div>
+              <div className="text-2xl font-extrabold text-slate-900 mt-1 font-['Space_Grotesk']">
+                {totalSaves}
+              </div>
+              <span className="text-[11px] text-slate-400">Saved by buyers</span>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                <span>Customer Inquiries</span>
+                <MessageSquare className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="text-2xl font-extrabold text-slate-900 mt-1 font-['Space_Grotesk']">
+                {totalInquiries}
+              </div>
+              <span className="text-[11px] text-slate-400">Direct inquiries</span>
+            </div>
+          </div>
+        )}
       </section>
 
-      {/* Main Inventory Management Table */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-4">
+      {/* Main Section Content: BizManager OR Inventory */}
+      {section === 'bizmanager' ? (
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+          <BizManagerPortal onNavigate={onNavigate} />
+        </main>
+      ) : (
+        /* Main Inventory Management Table */
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-4">
         {/* Status Tabs */}
         <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
@@ -400,6 +464,7 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
           </div>
         )}
       </main>
+      )}
 
       {/* Restock Modal */}
       {restockProduct && (

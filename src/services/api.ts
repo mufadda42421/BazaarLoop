@@ -1,4 +1,20 @@
-import { User, Product, Conversation, Message, AdCampaign, Report, Review, Notification, Order } from '../types';
+import {
+  User,
+  Product,
+  Conversation,
+  Message,
+  AdCampaign,
+  Report,
+  Review,
+  Notification,
+  Order,
+  BizTransaction,
+  BizBusiness,
+  BizPerson,
+  BizInvoice,
+  BizNote,
+  BizSettings
+} from '../types';
 
 const TOKEN_KEY = 'bazaarloop_token';
 
@@ -145,6 +161,23 @@ function getStoredCurrentUser(): User | null {
 
 export const api = {
   // Auth
+  loginWithFirebase: async (data: {
+    email: string;
+    name?: string;
+    avatarUrl?: string;
+    firebaseUid?: string;
+    bankingDetails?: any;
+  }): Promise<{ token: string; user: User }> => {
+    const res = await request<{ token: string; user: User }>('/api/auth/firebase', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (res && res.user) {
+      saveLocalUser(res.user);
+    }
+    return res;
+  },
+
   register: async (data: any): Promise<{ token: string; user: User }> => {
     try {
       const res = await request<{ token: string; user: User }>('/api/auth/register', {
@@ -380,5 +413,55 @@ export const api = {
   updateAdminReport: (id: string, status: string) => request<{ report: Report }>(`/api/admin/reports/${id}`, {
     method: 'PUT',
     body: JSON.stringify({ status })
+  }),
+
+  // BizManager Financial & Business Management Portal
+  getBizManagerData: () => request<{
+    transactions: BizTransaction[];
+    businesses: BizBusiness[];
+    people: BizPerson[];
+    invoices: BizInvoice[];
+    notes: BizNote[];
+    settings: BizSettings;
+    products: Product[];
+  }>('/api/bizmanager/data'),
+  addBizTransaction: (data: Partial<BizTransaction>) => request<{ transaction: BizTransaction }>('/api/bizmanager/transactions', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  deleteBizTransaction: (id: string) => request<{ success: boolean }>(`/api/bizmanager/transactions/${id}`, {
+    method: 'DELETE'
+  }),
+  addBizBusiness: (data: Partial<BizBusiness>) => request<{ business: BizBusiness }>('/api/bizmanager/businesses', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  deleteBizBusiness: (id: string) => request<{ success: boolean }>(`/api/bizmanager/businesses/${id}`, {
+    method: 'DELETE'
+  }),
+  saveBizPerson: (data: Partial<BizPerson>) => request<{ person: BizPerson }>('/api/bizmanager/people', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  deleteBizPerson: (id: string) => request<{ success: boolean }>(`/api/bizmanager/people/${id}`, {
+    method: 'DELETE'
+  }),
+  saveBizInvoice: (data: Partial<BizInvoice>) => request<{ invoice: BizInvoice }>('/api/bizmanager/invoices', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  deleteBizInvoice: (id: string) => request<{ success: boolean }>(`/api/bizmanager/invoices/${id}`, {
+    method: 'DELETE'
+  }),
+  saveBizNote: (data: Partial<BizNote>) => request<{ note: BizNote }>('/api/bizmanager/notes', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  deleteBizNote: (id: string) => request<{ success: boolean }>(`/api/bizmanager/notes/${id}`, {
+    method: 'DELETE'
+  }),
+  updateBizSettings: (data: Partial<BizSettings>) => request<{ settings: BizSettings }>('/api/bizmanager/settings', {
+    method: 'PUT',
+    body: JSON.stringify(data)
   })
 };

@@ -14,7 +14,13 @@ import {
   AdCampaign,
   Report,
   Review,
-  Notification
+  Notification,
+  BizTransaction,
+  BizBusiness,
+  BizPerson,
+  BizInvoice,
+  BizNote,
+  BizSettings
 } from './server/db';
 import {
   hashPassword,
@@ -197,6 +203,78 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Login error:', err);
     return res.status(500).json({ error: err.message || 'Server error during login' });
+  }
+});
+
+app.post('/api/auth/firebase', (req: Request, res: Response) => {
+  try {
+    const { email, name, avatarUrl, firebaseUid, bankingDetails } = req.body;
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (!cleanEmail) {
+      return res.status(400).json({ error: 'Valid email is required for Firebase authentication' });
+    }
+
+    const db = getDb();
+    let user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    if (user) {
+      if (name && (!user.name || user.name === 'Member')) user.name = name.trim();
+      if (avatarUrl && !user.avatarUrl) user.avatarUrl = avatarUrl;
+      user.isVerified = true;
+      user.updatedAt = new Date().toISOString();
+      saveDb(db);
+    } else {
+      const now = new Date().toISOString();
+      const isFirstUser = db.users.length === 0;
+      const isAdminEmail = cleanEmail === 'admin@bazaarloop.com' || cleanEmail === 'jaorawalamufaddal7@gmail.com';
+
+      const newUser: User = {
+        id: firebaseUid || crypto.randomUUID(),
+        name: typeof name === 'string' && name.trim() ? name.trim() : cleanEmail.split('@')[0],
+        email: cleanEmail,
+        passwordHash: hashPassword(crypto.randomUUID()),
+        avatarUrl: avatarUrl || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80`,
+        bio: '',
+        city: '',
+        role: isFirstUser || isAdminEmail ? 'admin' : 'user',
+        isVerified: true,
+        createdAt: now,
+        updatedAt: now,
+        whatsappNumber: null,
+        whatsappCountryCode: '+1',
+        whatsappLocalNumber: '',
+        whatsappNumberVerified: false,
+        whatsappContactEnabled: false,
+        whatsappNumberPublic: false,
+        whatsappContactPreference: 'direct_chat',
+        whatsappOnStorefront: true,
+        whatsappOnListings: true,
+        phoneNumber: null,
+        phoneCallEnabled: false,
+        isDifferentPhone: false,
+        bankingDetails: bankingDetails || undefined
+      };
+
+      db.users.push(newUser);
+      db.notifications.push({
+        id: crypto.randomUUID(),
+        userId: newUser.id,
+        title: 'Welcome to BazaarLoop E-Commerce!',
+        message: 'Your account is active via Firebase. Explore brand collections or start your official storefront.',
+        isRead: false,
+        createdAt: now,
+        type: 'system'
+      });
+
+      saveDb(db);
+      user = newUser;
+    }
+
+    const token = createToken({ userId: user.id, email: user.email, role: user.role });
+    return res.json({ token, user: sanitizeUser(user) });
+  } catch (err: any) {
+    console.error('Firebase auth endpoint error:', err);
+    return res.status(500).json({ error: err.message || 'Firebase login failed' });
   }
 });
 
@@ -1441,8 +1519,9 @@ app.post('/api/orders', requireAuth, (req: AuthenticatedRequest, res: Response) 
       });
     }
 
-    const shippingCost = subtotal >= 50 ? 0 : 9.99;
-    const total = subtotal + shippingCost;
+    // Delivery arrangement note: For delivery, contact your seller (no automated shipping fee added)
+    const shippingCost = 0;
+    const total = subtotal;
     const now = new Date();
     const orderNumber = `BL-${Math.floor(100000 + Math.random() * 900000)}`;
     const trackingNumber = `TRK-${Math.floor(10000000 + Math.random() * 90000000)}`;
@@ -1469,7 +1548,7 @@ app.post('/api/orders', requireAuth, (req: AuthenticatedRequest, res: Response) 
       currency: validatedItems[0]?.currency || 'USD',
       status: 'processing',
       trackingNumber,
-      carrier: 'BazaarLoop Express Priority',
+      carrier: 'BazaarLoop Direct Dispatch',
       estimatedDelivery: estDelivery,
       paymentMethod,
       createdAt: now.toISOString(),
@@ -1478,12 +1557,83 @@ app.post('/api/orders', requireAuth, (req: AuthenticatedRequest, res: Response) 
 
     db.orders.unshift(newOrder);
 
-    // Confirmation notification
+    // --------------------------------------------------------------------------
+    // AUTOMATIC BIZMANAGER MONEY FLOW INTEGRATION:
+    // "make it so it can automatically add money someone buys from you and takes out money if you buy something"
+    // --------------------------------------------------------------------------
+    if (!db.bizTransactions) db.bizTransactions = [];
+
+    // 1. Group items by seller and credit each seller with an Income record
+    const sellerSalesMap: Record<string, { total: number; itemNames: string[] }> = {};
+    for (const vItem of validatedItems) {
+      if (!sellerSalesMap[vItem.sellerId]) {
+        sellerSalesMap[vItem.sellerId] = { total: 0, itemNames: [] };
+      }
+      sellerSalesMap[vItem.sellerId].total += vItem.price * vItem.quantity;
+      sellerSalesMap[vItem.sellerId].itemNames.push(`${vItem.title} (x${vItem.quantity})`);
+    }
+
+    for (const [sellerId, saleData] of Object.entries(sellerSalesMap)) {
+      const sellerSettings = db.bizSettings?.find(s => s.userId === sellerId);
+      const isWajebaat = sellerSettings?.wajebaatEnabled ?? false;
+      const wajebaatAmt = isWajebaat ? Math.round(saleData.total * 0.025 * 100) / 100 : 0;
+
+      const incomeTx: BizTransaction = {
+        id: crypto.randomUUID(),
+        userId: sellerId,
+        type: 'income',
+        amount: saleData.total,
+        currency: newOrder.currency,
+        category: 'BazaarLoop Sales',
+        title: `Order #${orderNumber} — Sale: ${saleData.itemNames.join(', ')}`,
+        description: `Purchased by ${user.name} (${user.email}) via ${paymentMethod.toUpperCase()}`,
+        date: now.toISOString(),
+        paymentMode: (['upi', 'gpay', 'apple_pay', 'paypal', 'card'].includes(paymentMethod) ? paymentMethod : 'card') as any,
+        referenceId: orderNumber,
+        wajebaatAmount: wajebaatAmt,
+        source: 'auto_order',
+        createdAt: now.toISOString()
+      };
+      db.bizTransactions.unshift(incomeTx);
+
+      // Notify seller
+      db.notifications.unshift({
+        id: crypto.randomUUID(),
+        userId: sellerId,
+        title: `💰 Payment Received: Order #${orderNumber}`,
+        message: `You earned $${saleData.total.toFixed(2)} from ${user.name}. Money automatically credited to your BizManager ledger.`,
+        link: '/seller-dashboard',
+        isRead: false,
+        createdAt: now.toISOString(),
+        type: 'order'
+      });
+    }
+
+    // 2. Debit the buyer with an Expense record ("takes out money if you buy something")
+    const expenseTx: BizTransaction = {
+      id: crypto.randomUUID(),
+      userId: user.id,
+      type: 'expense',
+      amount: total,
+      currency: newOrder.currency,
+      category: 'Product Purchase',
+      title: `Order #${orderNumber} — BazaarLoop Purchase (${validatedItems.length} item${validatedItems.length > 1 ? 's' : ''})`,
+      description: `Payment authorized via ${paymentMethod.toUpperCase()}`,
+      date: now.toISOString(),
+      paymentMode: (['upi', 'gpay', 'apple_pay', 'paypal', 'card'].includes(paymentMethod) ? paymentMethod : 'card') as any,
+      referenceId: orderNumber,
+      wajebaatAmount: 0,
+      source: 'auto_order',
+      createdAt: now.toISOString()
+    };
+    db.bizTransactions.unshift(expenseTx);
+
+    // Confirmation notification to buyer
     db.notifications.unshift({
       id: crypto.randomUUID(),
       userId: user.id,
       title: `Order Confirmed: #${orderNumber}`,
-      message: `Your brand new items are being packaged for express delivery. Tracking code: ${trackingNumber}`,
+      message: `Your brand new items order has been placed. $${total.toFixed(2)} recorded in your BizManager ledger. For delivery, contact your seller.`,
       link: '/buyer-hub',
       isRead: false,
       createdAt: now.toISOString(),
@@ -1583,6 +1733,474 @@ app.put('/api/admin/reports/:id', requireAuth, (req: AuthenticatedRequest, res: 
     return res.json({ report });
   } catch (err: any) {
     return res.status(500).json({ error: 'Failed to update report' });
+  }
+});
+
+// --------------------------------------------------------------------------
+// 9.5 BIZMANAGER FINANCIAL & BUSINESS MANAGEMENT API
+// --------------------------------------------------------------------------
+
+app.get('/api/bizmanager/data', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const db = getDb();
+
+    if (!db.bizTransactions) db.bizTransactions = [];
+    if (!db.bizBusinesses) db.bizBusinesses = [];
+    if (!db.bizPeople) db.bizPeople = [];
+    if (!db.bizInvoices) db.bizInvoices = [];
+    if (!db.bizNotes) db.bizNotes = [];
+    if (!db.bizSettings) db.bizSettings = [];
+
+    // Ensure user has at least 1 default business profile
+    let userBusinesses = db.bizBusinesses.filter(b => b.userId === userId);
+    if (userBusinesses.length === 0) {
+      const defaultBiz: BizBusiness = {
+        id: crypto.randomUUID(),
+        userId,
+        name: `${req.user!.name}'s BazaarLoop Store`,
+        tagline: 'Verified Brand Direct Merchant Storefront',
+        category: 'Brand Retail & E-Commerce',
+        currency: 'USD',
+        createdAt: new Date().toISOString()
+      };
+      db.bizBusinesses.push(defaultBiz);
+      userBusinesses = [defaultBiz];
+      saveDb(db);
+    }
+
+    // Ensure user has settings
+    let userSettings = db.bizSettings.find(s => s.userId === userId);
+    if (!userSettings) {
+      userSettings = {
+        userId,
+        defaultCurrency: 'USD',
+        wajebaatEnabled: false,
+        wajebaatRate: 0.025, // 1/40th
+        khumusRate: 0.20, // 20%
+        invoiceWatermarkText: 'BazaarLoop Verified Merchant',
+        invoiceBusinessName: userBusinesses[0]?.name || req.user!.name,
+        invoicePhone: req.user!.whatsappNumber ? `+${req.user!.whatsappNumber}` : '',
+        invoiceAddress: req.user!.city || 'Merchant Headquarters',
+        upiId: req.user!.bankingDetails?.upiId || '',
+        bankName: req.user!.bankingDetails?.bankName || '',
+        accountNumber: req.user!.bankingDetails?.accountNumber || ''
+      };
+      db.bizSettings.push(userSettings);
+      saveDb(db);
+    }
+
+    const transactions = db.bizTransactions.filter(t => t.userId === userId);
+    const people = db.bizPeople.filter(p => p.userId === userId);
+    const invoices = db.bizInvoices.filter(i => i.userId === userId);
+    const notes = db.bizNotes.filter(n => n.userId === userId);
+    const merchantProducts = (db.products || []).filter(p => p.sellerId === userId);
+
+    return res.json({
+      transactions,
+      businesses: userBusinesses,
+      people,
+      invoices,
+      notes,
+      settings: userSettings,
+      products: merchantProducts
+    });
+  } catch (err: any) {
+    console.error('Error fetching BizManager data:', err);
+    return res.status(500).json({ error: 'Failed to fetch BizManager data' });
+  }
+});
+
+app.post('/api/bizmanager/transactions', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const {
+      type,
+      amount,
+      currency = 'USD',
+      category,
+      title,
+      description = '',
+      date = new Date().toISOString(),
+      paymentMode = 'card',
+      referenceId = '',
+      businessId,
+      wajebaatAmount
+    } = req.body;
+
+    if (!type || !['income', 'expense'].includes(type)) {
+      return res.status(400).json({ error: 'Transaction type must be income or expense' });
+    }
+    const parsedAmount = Math.abs(parseFloat(amount) || 0);
+    if (parsedAmount <= 0) {
+      return res.status(400).json({ error: 'Amount must be greater than zero' });
+    }
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Transaction title is required' });
+    }
+
+    const db = getDb();
+    if (!db.bizTransactions) db.bizTransactions = [];
+
+    const newTx: BizTransaction = {
+      id: crypto.randomUUID(),
+      userId,
+      businessId,
+      type,
+      amount: parsedAmount,
+      currency,
+      category: category?.trim() || (type === 'income' ? 'Sales Revenue' : 'Operating Expense'),
+      title: title.trim(),
+      description: description?.trim() || '',
+      date,
+      paymentMode,
+      referenceId: referenceId?.trim() || `TX-${Math.floor(100000 + Math.random() * 900000)}`,
+      wajebaatAmount: typeof wajebaatAmount === 'number' ? wajebaatAmount : 0,
+      source: 'manual',
+      createdAt: new Date().toISOString()
+    };
+
+    db.bizTransactions.unshift(newTx);
+    saveDb(db);
+    return res.status(201).json({ transaction: newTx });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to record transaction' });
+  }
+});
+
+app.delete('/api/bizmanager/transactions/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const db = getDb();
+    if (!db.bizTransactions) db.bizTransactions = [];
+
+    const idx = db.bizTransactions.findIndex(t => t.id === id && t.userId === userId);
+    if (idx === -1) return res.status(404).json({ error: 'Transaction not found' });
+
+    db.bizTransactions.splice(idx, 1);
+    saveDb(db);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to delete transaction' });
+  }
+});
+
+app.post('/api/bizmanager/businesses', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { name, tagline = '', category = 'Retail', currency = 'USD' } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Business name is required' });
+
+    const db = getDb();
+    if (!db.bizBusinesses) db.bizBusinesses = [];
+
+    const newBiz: BizBusiness = {
+      id: crypto.randomUUID(),
+      userId,
+      name: name.trim(),
+      tagline: tagline.trim(),
+      category: category.trim(),
+      currency,
+      createdAt: new Date().toISOString()
+    };
+
+    db.bizBusinesses.push(newBiz);
+    saveDb(db);
+    return res.status(201).json({ business: newBiz });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to create business profile' });
+  }
+});
+
+app.delete('/api/bizmanager/businesses/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const db = getDb();
+    if (!db.bizBusinesses) db.bizBusinesses = [];
+
+    const idx = db.bizBusinesses.findIndex(b => b.id === id && b.userId === userId);
+    if (idx === -1) return res.status(404).json({ error: 'Business not found' });
+
+    db.bizBusinesses.splice(idx, 1);
+    saveDb(db);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to delete business' });
+  }
+});
+
+app.post('/api/bizmanager/people', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id, name, phone = '', email = '', role = 'customer', balance = 0, notes = '' } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+
+    const db = getDb();
+    if (!db.bizPeople) db.bizPeople = [];
+
+    if (id) {
+      const existing = db.bizPeople.find(p => p.id === id && p.userId === userId);
+      if (existing) {
+        existing.name = name.trim();
+        existing.phone = phone.trim();
+        existing.email = email.trim();
+        existing.role = role;
+        existing.balance = Number(balance) || 0;
+        existing.notes = notes.trim();
+        saveDb(db);
+        return res.json({ person: existing });
+      }
+    }
+
+    const newPerson: BizPerson = {
+      id: crypto.randomUUID(),
+      userId,
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      role,
+      balance: Number(balance) || 0,
+      notes: notes.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    db.bizPeople.push(newPerson);
+    saveDb(db);
+    return res.status(201).json({ person: newPerson });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to save person' });
+  }
+});
+
+app.delete('/api/bizmanager/people/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const db = getDb();
+    if (!db.bizPeople) db.bizPeople = [];
+
+    const idx = db.bizPeople.findIndex(p => p.id === id && p.userId === userId);
+    if (idx === -1) return res.status(404).json({ error: 'Person not found' });
+
+    db.bizPeople.splice(idx, 1);
+    saveDb(db);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to delete person' });
+  }
+});
+
+app.post('/api/bizmanager/invoices', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const {
+      id,
+      customerName,
+      customerPhone = '',
+      customerEmail = '',
+      items = [],
+      taxRate = 0,
+      discount = 0,
+      currency = 'USD',
+      status = 'issued',
+      dueDate = '',
+      notes = ''
+    } = req.body;
+
+    if (!customerName || !customerName.trim()) {
+      return res.status(400).json({ error: 'Customer name is required' });
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Invoice must contain at least one item' });
+    }
+
+    let subtotal = 0;
+    const validatedItems = items.map(it => {
+      const q = Math.max(1, parseInt(it.quantity, 10) || 1);
+      const p = Math.max(0, parseFloat(it.price) || 0);
+      const itemTotal = q * p;
+      subtotal += itemTotal;
+      return {
+        title: (it.title || 'Item').trim(),
+        quantity: q,
+        price: p,
+        total: itemTotal
+      };
+    });
+
+    const parsedTaxRate = Math.max(0, parseFloat(taxRate) || 0);
+    const parsedDiscount = Math.max(0, parseFloat(discount) || 0);
+    const taxAmount = (subtotal - parsedDiscount) * (parsedTaxRate / 100);
+    const total = Math.max(0, subtotal - parsedDiscount + taxAmount);
+
+    const db = getDb();
+    if (!db.bizInvoices) db.bizInvoices = [];
+
+    if (id) {
+      const existing = db.bizInvoices.find(inv => inv.id === id && inv.userId === userId);
+      if (existing) {
+        existing.customerName = customerName.trim();
+        existing.customerPhone = customerPhone.trim();
+        existing.customerEmail = customerEmail.trim();
+        existing.items = validatedItems;
+        existing.subtotal = subtotal;
+        existing.taxRate = parsedTaxRate;
+        existing.taxAmount = taxAmount;
+        existing.discount = parsedDiscount;
+        existing.total = total;
+        existing.currency = currency;
+        existing.status = status;
+        existing.dueDate = dueDate;
+        existing.notes = notes.trim();
+        saveDb(db);
+        return res.json({ invoice: existing });
+      }
+    }
+
+    const newInvoice: BizInvoice = {
+      id: crypto.randomUUID(),
+      invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+      userId,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
+      customerEmail: customerEmail.trim(),
+      items: validatedItems,
+      subtotal,
+      taxRate: parsedTaxRate,
+      taxAmount,
+      discount: parsedDiscount,
+      total,
+      currency,
+      status,
+      dueDate,
+      notes: notes.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    db.bizInvoices.unshift(newInvoice);
+    saveDb(db);
+    return res.status(201).json({ invoice: newInvoice });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to save invoice' });
+  }
+});
+
+app.delete('/api/bizmanager/invoices/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const db = getDb();
+    if (!db.bizInvoices) db.bizInvoices = [];
+
+    const idx = db.bizInvoices.findIndex(inv => inv.id === id && inv.userId === userId);
+    if (idx === -1) return res.status(404).json({ error: 'Invoice not found' });
+
+    db.bizInvoices.splice(idx, 1);
+    saveDb(db);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to delete invoice' });
+  }
+});
+
+app.post('/api/bizmanager/notes', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { title, content, color = 'amber' } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'Note title is required' });
+
+    const db = getDb();
+    if (!db.bizNotes) db.bizNotes = [];
+
+    const newNote: BizNote = {
+      id: crypto.randomUUID(),
+      userId,
+      title: title.trim(),
+      content: content?.trim() || '',
+      color,
+      createdAt: new Date().toISOString()
+    };
+
+    db.bizNotes.unshift(newNote);
+    saveDb(db);
+    return res.status(201).json({ note: newNote });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to save note' });
+  }
+});
+
+app.delete('/api/bizmanager/notes/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const db = getDb();
+    if (!db.bizNotes) db.bizNotes = [];
+
+    const idx = db.bizNotes.findIndex(n => n.id === id && n.userId === userId);
+    if (idx === -1) return res.status(404).json({ error: 'Note not found' });
+
+    db.bizNotes.splice(idx, 1);
+    saveDb(db);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to delete note' });
+  }
+});
+
+app.put('/api/bizmanager/settings', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const db = getDb();
+    if (!db.bizSettings) db.bizSettings = [];
+
+    let current = db.bizSettings.find(s => s.userId === userId);
+    if (!current) {
+      current = {
+        userId,
+        defaultCurrency: 'USD',
+        wajebaatEnabled: false,
+        wajebaatRate: 0.025,
+        khumusRate: 0.20,
+        invoiceWatermarkText: 'BazaarLoop Verified Merchant',
+        invoiceBusinessName: req.user!.name,
+        invoicePhone: req.user!.whatsappNumber ? `+${req.user!.whatsappNumber}` : '',
+        invoiceAddress: req.user!.city || ''
+      };
+      db.bizSettings.push(current);
+    }
+
+    const {
+      defaultCurrency,
+      wajebaatEnabled,
+      wajebaatRate,
+      khumusRate,
+      invoiceWatermarkText,
+      invoiceBusinessName,
+      invoicePhone,
+      invoiceAddress,
+      bankName,
+      accountNumber,
+      upiId
+    } = req.body;
+
+    if (defaultCurrency) current.defaultCurrency = defaultCurrency;
+    if (typeof wajebaatEnabled === 'boolean') current.wajebaatEnabled = wajebaatEnabled;
+    if (typeof wajebaatRate === 'number') current.wajebaatRate = wajebaatRate;
+    if (typeof khumusRate === 'number') current.khumusRate = khumusRate;
+    if (invoiceWatermarkText !== undefined) current.invoiceWatermarkText = invoiceWatermarkText.trim();
+    if (invoiceBusinessName !== undefined) current.invoiceBusinessName = invoiceBusinessName.trim();
+    if (invoicePhone !== undefined) current.invoicePhone = invoicePhone.trim();
+    if (invoiceAddress !== undefined) current.invoiceAddress = invoiceAddress.trim();
+    if (bankName !== undefined) current.bankName = bankName.trim();
+    if (accountNumber !== undefined) current.accountNumber = accountNumber.trim();
+    if (upiId !== undefined) current.upiId = upiId.trim();
+
+    saveDb(db);
+    return res.json({ settings: current });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to update BizManager settings' });
   }
 });
 

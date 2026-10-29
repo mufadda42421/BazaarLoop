@@ -110,9 +110,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigate }) => {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">
-              BL
-            </div>
+            <img
+              src="/assets/aistudio/Bazaar-Loop_Shopping_Bag_Logo_6ec1025c.png"
+              alt="Bazaar-Loop Logo"
+              className="w-9 h-9 object-contain rounded-xl shadow-xs border border-slate-200/50 bg-white"
+            />
             <div>
               <h3 className="text-base font-bold text-slate-900 font-['Space_Grotesk']">
                 {completedOrder ? 'Order Confirmed!' : 'Direct Order & Checkout'}

@@ -44,6 +44,9 @@ function AppContent() {
       } else if (hash.startsWith('inbox-')) {
         setCurrentView('inbox');
         setViewParam(hash.replace('inbox-', ''));
+      } else if (hash === 'bizmanager') {
+        setCurrentView('seller-dashboard');
+        setViewParam('bizmanager');
       } else if (['home', 'buyer-hub', 'create-listing', 'seller-dashboard', 'inbox', 'account-settings', 'advertising', 'admin'].includes(hash)) {
         setCurrentView(hash);
         setViewParam(undefined);
@@ -105,6 +108,7 @@ function AppContent() {
         {currentView === 'seller-dashboard' && (
           <SellerDashboardView
             onNavigate={navigate}
+            initialSection={viewParam === 'bizmanager' ? 'bizmanager' : 'inventory'}
           />
         )}
 

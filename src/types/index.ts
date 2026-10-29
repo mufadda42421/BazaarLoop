@@ -240,3 +240,88 @@ export const CATEGORIES = [
 export const CONDITIONS = [
   { value: 'new', label: '100% Brand New', description: 'Factory-sealed original retail box with warranty' }
 ] as const;
+
+export interface BizTransaction {
+  id: string;
+  userId: string;
+  businessId?: string;
+  type: 'income' | 'expense';
+  amount: number;
+  currency: string;
+  category: string;
+  title: string;
+  description?: string;
+  date: string;
+  paymentMode: 'upi' | 'gpay' | 'apple_pay' | 'paypal' | 'card' | 'cash' | 'bank_transfer';
+  referenceId?: string;
+  wajebaatAmount?: number;
+  source: 'auto_order' | 'manual';
+  createdAt: string;
+}
+
+export interface BizBusiness {
+  id: string;
+  userId: string;
+  name: string;
+  tagline?: string;
+  category?: string;
+  currency: string;
+  createdAt: string;
+}
+
+export interface BizPerson {
+  id: string;
+  userId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  role: 'customer' | 'supplier' | 'partner' | 'staff';
+  balance: number;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface BizInvoice {
+  id: string;
+  invoiceNumber: string;
+  userId: string;
+  customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  items: Array<{ title: string; quantity: number; price: number; total: number }>;
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  discount: number;
+  total: number;
+  currency: string;
+  status: 'draft' | 'issued' | 'paid' | 'cancelled';
+  dueDate?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface BizNote {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  color?: string;
+  createdAt: string;
+}
+
+export interface BizSettings {
+  userId: string;
+  defaultCurrency: string;
+  wajebaatEnabled: boolean;
+  wajebaatRate: number;
+  khumusRate: number;
+  invoiceWatermarkText: string;
+  invoiceBusinessName: string;
+  invoicePhone: string;
+  invoiceAddress: string;
+  bankName?: string;
+  accountNumber?: string;
+  upiId?: string;
+}
+
