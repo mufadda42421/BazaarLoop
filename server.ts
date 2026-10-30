@@ -49,6 +49,12 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Google Search Console Site Verification file endpoint
+app.get('/google19cd285af1593cdf.html', (_req: Request, res: Response) => {
+  res.type('text/html');
+  res.send('google-site-verification: google19cd285af1593cdf.html');
+});
+
 // Helper: sanitize user for safe client consumption
 function sanitizeUser(user: User) {
   const { passwordHash, ...safe } = user;
@@ -71,7 +77,8 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
       isDifferentPhone = false,
       phoneNumber = '',
       phoneCallEnabled = false,
-      bankingDetails
+      bankingDetails,
+      firebaseUid
     } = req.body;
 
     const cleanName = typeof name === 'string' ? name.trim() : '';
@@ -131,16 +138,17 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
     const now = new Date().toISOString();
     // First user becomes admin automatically for moderation testing
     const isFirstUser = db.users.length === 0;
+    const isAdminEmail = cleanEmail === 'admin@bazaarloop.com' || cleanEmail === 'jaorawalamufaddal7@gmail.com';
 
     const newUser: User = {
-      id: crypto.randomUUID(),
+      id: firebaseUid || crypto.randomUUID(),
       name: cleanName,
       email: cleanEmail,
       passwordHash: hashPassword(cleanPassword),
       avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80`,
       bio: '',
       city: '',
-      role: isFirstUser ? 'admin' : 'user',
+      role: isFirstUser || isAdminEmail ? 'admin' : 'user',
       isVerified: true,
       createdAt: now,
       updatedAt: now,
@@ -704,7 +712,13 @@ app.put('/api/products/:id', requireAuth, (req: AuthenticatedRequest, res: Respo
     const product = db.products.find(p => p.id === id);
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    if (product.sellerId !== req.user!.id && req.user!.role !== 'admin') {
+    const requestingUser = req.user!;
+    const sellerUser = db.users.find(u => u.id === product.sellerId);
+    const isOwnerById = product.sellerId === requestingUser.id;
+    const isOwnerByEmail = sellerUser && sellerUser.email.toLowerCase() === requestingUser.email.toLowerCase();
+    const isAdmin = requestingUser.role === 'admin';
+
+    if (!isOwnerById && !isOwnerByEmail && !isAdmin) {
       return res.status(403).json({ error: 'Unauthorized to modify this listing' });
     }
 
@@ -775,7 +789,15 @@ app.delete('/api/products/:id', requireAuth, (req: AuthenticatedRequest, res: Re
     if (productIndex === -1) return res.status(404).json({ error: 'Product not found' });
 
     const product = db.products[productIndex];
-    if (product.sellerId !== req.user!.id && req.user!.role !== 'admin') {
+    const requestingUser = req.user!;
+    
+    // Check if requester is seller by ID, by email (e.g. Firebase vs local ID sync), or an admin
+    const sellerUser = db.users.find(u => u.id === product.sellerId);
+    const isOwnerById = product.sellerId === requestingUser.id;
+    const isOwnerByEmail = sellerUser && sellerUser.email.toLowerCase() === requestingUser.email.toLowerCase();
+    const isAdmin = requestingUser.role === 'admin';
+
+    if (!isOwnerById && !isOwnerByEmail && !isAdmin) {
       return res.status(403).json({ error: 'Unauthorized to delete this listing' });
     }
 

@@ -17,6 +17,8 @@ import {
   PlayCircle,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
+  Ban,
   RefreshCw,
   Sliders,
   DollarSign,
@@ -31,6 +33,8 @@ interface SellerDashboardViewProps {
   initialSection?: string;
 }
 
+const LOW_STOCK_STORAGE_KEY = 'bazaarloop_seller_low_stock_threshold';
+
 export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavigate, initialSection }) => {
   const { user } = useAuth();
 
@@ -39,7 +43,27 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
   );
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [tab, setTab] = useState<'all' | 'active' | 'out_of_stock' | 'paused' | 'draft'>('all');
+  const [tab, setTab] = useState<'all' | 'active' | 'low_stock' | 'out_of_stock' | 'paused' | 'draft'>('all');
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // User-defined Low Stock Threshold (default 5)
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem(LOW_STOCK_STORAGE_KEY);
+      return stored ? Math.max(1, parseInt(stored, 10) || 5) : 5;
+    } catch {
+      return 5;
+    }
+  });
+  const [showThresholdConfig, setShowThresholdConfig] = useState(false);
+
+  const handleUpdateThreshold = (val: number) => {
+    const clean = Math.max(1, Math.min(100, val || 5));
+    setLowStockThreshold(clean);
+    try {
+      localStorage.setItem(LOW_STOCK_STORAGE_KEY, String(clean));
+    } catch {}
+  };
 
   useEffect(() => {
     if (initialSection === 'bizmanager') {
@@ -75,10 +99,14 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
   const totalSaves = products.reduce((sum, p) => sum + (p.savesCount || 0), 0);
   const totalInquiries = products.reduce((sum, p) => sum + (p.inquiriesCount || 0), 0);
   const outOfStockCount = products.filter(p => p.quantity === 0 || p.status === 'out_of_stock').length;
+  const lowStockCount = products.filter(
+    p => p.status === 'active' && p.quantity > 0 && p.quantity <= lowStockThreshold
+  ).length;
 
   const filteredProducts = products.filter(p => {
     if (tab === 'all') return true;
     if (tab === 'out_of_stock') return p.quantity === 0 || p.status === 'out_of_stock';
+    if (tab === 'low_stock') return p.status === 'active' && p.quantity > 0 && p.quantity <= lowStockThreshold;
     return p.status === tab;
   });
 
@@ -98,8 +126,22 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
       await api.updateProduct(restockProduct.id, {
         quantity: updatedQty,
         price: updatedPrice,
-        status: updatedQty > 0 && restockProduct.status === 'out_of_stock' ? 'active' : undefined
+        status: updatedQty > 0 ? 'active' : 'out_of_stock'
       });
+
+      // Optimistic update in list
+      setProducts(prev =>
+        prev.map(item =>
+          item.id === restockProduct.id
+            ? {
+                ...item,
+                quantity: updatedQty,
+                price: updatedPrice,
+                status: updatedQty > 0 ? 'active' : 'out_of_stock'
+              }
+            : item
+        )
+      );
 
       setRestockProduct(null);
       fetchSellerListings();
@@ -112,20 +154,58 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
 
   const handleToggleStatus = async (p: Product, newStatus: 'active' | 'paused') => {
     try {
+      setActionLoadingId(p.id);
       await api.updateProduct(p.id, { status: newStatus });
+      setProducts(prev => prev.map(item => item.id === p.id ? { ...item, status: newStatus } : item));
       fetchSellerListings();
     } catch (err: any) {
       alert(err.message || 'Failed to change product status');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Toggle Out-Of-Stock directly
+  const handleToggleOutOfStock = async (p: Product) => {
+    const isCurrentlyOOS = p.quantity === 0 || p.status === 'out_of_stock';
+    const nextStatus = isCurrentlyOOS ? 'active' : 'out_of_stock';
+    const nextQuantity = isCurrentlyOOS ? (p.initialQuantity || 10) : 0;
+
+    try {
+      setActionLoadingId(p.id);
+      await api.updateProduct(p.id, {
+        status: nextStatus,
+        quantity: nextQuantity
+      });
+
+      setProducts(prev =>
+        prev.map(item =>
+          item.id === p.id
+            ? { ...item, status: nextStatus, quantity: nextQuantity }
+            : item
+        )
+      );
+      fetchSellerListings();
+    } catch (err: any) {
+      alert(err.message || 'Failed to toggle out of stock status');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
   const handleDeleteListing = async (productId: string) => {
-    if (!confirm('Are you sure you want to delete this product listing permanently?')) return;
+    if (!confirm('Are you sure you want to permanently delete this product listing? This action cannot be undone.')) return;
     try {
+      setActionLoadingId(productId);
       await api.deleteProduct(productId);
+      // Immediate optimistic removal
+      setProducts(prev => prev.filter(p => p.id !== productId));
       fetchSellerListings();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete product');
+      console.error('Delete product error:', err);
+      alert(err.message || 'Failed to delete product. Please make sure you are signed in.');
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -288,12 +368,13 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
       ) : (
         /* Main Inventory Management Table */
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-4">
-        {/* Status Tabs */}
-        <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+        {/* Status Tabs & Low Stock Threshold Controls */}
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-3">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
             {[
               { id: 'all', label: 'All Products', count: products.length },
               { id: 'active', label: 'Active', count: products.filter(p => p.status === 'active' && p.quantity > 0).length },
+              { id: 'low_stock', label: 'Low Stock Alert', count: lowStockCount, isAlert: lowStockCount > 0 },
               { id: 'out_of_stock', label: 'Out of Stock', count: outOfStockCount },
               { id: 'paused', label: 'Paused', count: products.filter(p => p.status === 'paused').length },
               { id: 'draft', label: 'Drafts', count: products.filter(p => p.status === 'draft').length }
@@ -305,13 +386,22 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
                   onClick={() => setTab(t.id as any)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     isSelected
-                      ? 'bg-slate-900 text-white shadow-sm'
+                      ? t.isAlert
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'bg-slate-900 text-white shadow-sm'
+                      : t.isAlert
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
+                  {t.id === 'low_stock' && <AlertTriangle className="w-3.5 h-3.5" />}
                   <span>{t.label}</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200/60 text-slate-600'
+                    isSelected
+                      ? 'bg-white/20 text-white'
+                      : t.isAlert
+                      ? 'bg-amber-200 text-amber-900 font-bold'
+                      : 'bg-slate-200/60 text-slate-600'
                   }`}>
                     {t.count}
                   </span>
@@ -319,7 +409,57 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
               );
             })}
           </div>
+
+          {/* User-defined Low Stock Threshold Settings */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowThresholdConfig(!showThresholdConfig)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100/70 text-amber-900 text-xs font-bold transition-colors cursor-pointer"
+              title="Set Low Stock Warning Threshold"
+            >
+              <Sliders className="w-3.5 h-3.5 text-amber-600" />
+              <span>Threshold: ≤ {lowStockThreshold} units</span>
+            </button>
+          </div>
         </div>
+
+        {/* Expandable Low Stock Threshold Controller */}
+        {showThresholdConfig && (
+          <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <div>
+                <strong className="text-xs font-bold block text-amber-950">
+                  Custom Low Stock Warning Threshold
+                </strong>
+                <p className="text-[11px] text-amber-800">
+                  Highlight products with low warehouse inventory so you can restock or mark out of stock before buyers order.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-amber-900">Warn when stock falls to or below:</span>
+              <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl border border-amber-300 shadow-xs">
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={lowStockThreshold}
+                  onChange={e => handleUpdateThreshold(parseInt(e.target.value, 10) || 1)}
+                  className="w-14 text-center text-xs font-bold text-slate-900 focus:outline-none"
+                />
+                <span className="text-xs font-bold text-slate-500">units</span>
+              </div>
+              <button
+                onClick={() => setShowThresholdConfig(false)}
+                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Listings List */}
         {isLoading ? (
@@ -333,6 +473,8 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
             <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
               {tab === 'all'
                 ? "You haven't launched any brand products yet. Publish your first item to start receiving customer orders!"
+                : tab === 'low_stock'
+                ? `All your active listings have healthy inventory levels above ${lowStockThreshold} units.`
                 : `There are currently no items under the ${tab.replace('_', ' ')} status.`}
             </p>
             <button
@@ -346,30 +488,49 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
           <div className="mt-4 space-y-3">
             {filteredProducts.map(p => {
               const isOOS = p.quantity === 0 || p.status === 'out_of_stock';
+              const isLowStock = !isOOS && p.status === 'active' && p.quantity <= lowStockThreshold;
+              const isBusy = actionLoadingId === p.id;
+
               return (
                 <div
                   key={p.id}
-                  className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                  className={`bg-white rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                    isOOS
+                      ? 'border-rose-200 bg-rose-50/20'
+                      : isLowStock
+                      ? 'border-amber-300 ring-2 ring-amber-400/20 bg-amber-50/30'
+                      : 'border-slate-200/80'
+                  }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0 border border-slate-100 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0 border border-slate-100 flex items-center justify-center relative">
                       <SafeImage
                         src={p.images?.[0]}
                         alt={p.title}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover ${isOOS ? 'grayscale opacity-75' : ''}`}
                         fallback={<Package className="w-6 h-6 text-slate-400" />}
                       />
+                      {isLowStock && (
+                        <div className="absolute top-1 right-1 w-3 h-3 rounded-full bg-amber-500 ring-2 ring-white" title="Low stock alert" />
+                      )}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900 truncate">{p.title}</span>
-                        {p.status === 'active' && !isOOS && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold text-slate-900 truncate max-w-[220px] sm:max-w-md">{p.title}</span>
+                        {p.status === 'active' && !isOOS && !isLowStock && (
                           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
                             Active & In Stock
                           </span>
                         )}
+                        {isLowStock && (
+                          <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1 shadow-2xs animate-pulse">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            Low Stock Warning ({p.quantity} left ≤ {lowStockThreshold})
+                          </span>
+                        )}
                         {isOOS && (
-                          <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                          <span className="bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                            <Ban className="w-3 h-3 text-rose-600" />
                             Out of Stock
                           </span>
                         )}
@@ -385,19 +546,19 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
                         )}
                       </div>
 
-                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
                         <span className="font-extrabold text-slate-900">
                           {p.currency} {p.price.toLocaleString()}
                         </span>
                         <span>•</span>
-                        <span className={p.quantity === 0 ? 'text-rose-600 font-bold' : 'text-slate-700 font-semibold'}>
-                          Stock: {p.quantity} units
+                        <span className={isOOS ? 'text-rose-600 font-extrabold' : isLowStock ? 'text-amber-700 font-bold bg-amber-100/60 px-1.5 py-0.5 rounded' : 'text-slate-700 font-semibold'}>
+                          Stock: {p.quantity} units {isLowStock ? `(Critical ≤ ${lowStockThreshold})` : ''}
                         </span>
                         <span>•</span>
                         <span>{p.brand || p.category}</span>
                       </div>
 
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1 flex-wrap">
                         <span>{p.viewsCount || 0} views</span>
                         <span>{p.savesCount || 0} saves</span>
                         <span>{p.inquiriesCount || 0} inquiries</span>
@@ -408,6 +569,30 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
 
                   {/* Actions Toolbar */}
                   <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                    {/* Quick Out-Of-Stock Toggle Button */}
+                    <button
+                      onClick={() => handleToggleOutOfStock(p)}
+                      disabled={isBusy}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                        isOOS
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                          : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                      }`}
+                      title={isOOS ? 'Mark back in stock' : 'Mark item as Out of Stock for buyers'}
+                    >
+                      {isOOS ? (
+                        <>
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Mark In Stock</span>
+                        </>
+                      ) : (
+                        <>
+                          <Ban className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Mark Out of Stock</span>
+                        </>
+                      )}
+                    </button>
+
                     <button
                       onClick={() => handleOpenRestock(p)}
                       className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
@@ -427,7 +612,8 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
                     {p.status === 'active' ? (
                       <button
                         onClick={() => handleToggleStatus(p, 'paused')}
-                        className="p-2 rounded-xl text-slate-500 hover:text-amber-600 hover:bg-amber-50 cursor-pointer"
+                        disabled={isBusy}
+                        className="p-2 rounded-xl text-slate-500 hover:text-amber-600 hover:bg-amber-50 cursor-pointer disabled:opacity-50"
                         title="Pause product"
                       >
                         <PauseCircle className="w-4 h-4" />
@@ -435,7 +621,8 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
                     ) : (
                       <button
                         onClick={() => handleToggleStatus(p, 'active')}
-                        className="p-2 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 cursor-pointer"
+                        disabled={isBusy}
+                        className="p-2 rounded-xl text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 cursor-pointer disabled:opacity-50"
                         title="Activate product"
                       >
                         <PlayCircle className="w-4 h-4" />
@@ -450,12 +637,18 @@ export const SellerDashboardView: React.FC<SellerDashboardViewProps> = ({ onNavi
                       <Copy className="w-4 h-4" />
                     </button>
 
+                    {/* Delete Permanently Button */}
                     <button
                       onClick={() => handleDeleteListing(p.id)}
-                      className="p-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
-                      title="Delete permanently"
+                      disabled={isBusy}
+                      className="p-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 cursor-pointer disabled:opacity-50 transition-colors"
+                      title="Delete permanently from store"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {isBusy ? (
+                        <div className="w-4 h-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4 text-rose-500" />
+                      )}
                     </button>
                   </div>
                 </div>

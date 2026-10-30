@@ -33,7 +33,9 @@ import {
   Minus,
   Package,
   CreditCard,
-  Copy
+  Copy,
+  Trash2,
+  Ban
 } from 'lucide-react';
 
 interface ProductDetailViewProps {
@@ -253,6 +255,43 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId,
     }
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isTogglingOOS, setIsTogglingOOS] = useState(false);
+
+  const handleDeleteThisProduct = async () => {
+    if (!product) return;
+    if (!confirm('Are you sure you want to permanently delete this listing? This action cannot be undone.')) return;
+    setIsDeleting(true);
+    try {
+      await api.deleteProduct(product.id);
+      alert('Product deleted successfully.');
+      onNavigate('seller-dashboard');
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to delete listing.');
+      setIsDeleting(false);
+    }
+  };
+
+  const handleToggleThisOOS = async () => {
+    if (!product) return;
+    setIsTogglingOOS(true);
+    try {
+      const nextStatus = isOutOfStock ? 'active' : 'out_of_stock';
+      const nextQty = isOutOfStock ? (product.initialQuantity || 10) : 0;
+      const res = await api.updateProduct(product.id, {
+        status: nextStatus,
+        quantity: nextQty
+      });
+      setProduct(res.product);
+      alert(nextStatus === 'out_of_stock' ? 'Product marked as Out of Stock.' : 'Product is now In Stock.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to update stock status.');
+    } finally {
+      setIsTogglingOOS(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FAFAF9] pb-24">
       {/* Top Breadcrumb & Actions Bar */}
@@ -273,7 +312,35 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId,
             <span>{copiedLink ? 'Link Copied!' : 'Share'}</span>
           </button>
 
-          {!isOwner && (
+          {isOwner ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleToggleThisOOS}
+                disabled={isTogglingOOS}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                  isOutOfStock
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                    : 'border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100'
+                }`}
+              >
+                <Ban className="w-3.5 h-3.5" />
+                <span>{isTogglingOOS ? 'Updating...' : isOutOfStock ? 'Mark In Stock' : 'Mark Out of Stock'}</span>
+              </button>
+
+              <button
+                onClick={handleDeleteThisProduct}
+                disabled={isDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <div className="w-3.5 h-3.5 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>Delete Listing</span>
+              </button>
+            </div>
+          ) : (
             <button
               onClick={() => {
                 if (!user) openAuthModal('signin');
